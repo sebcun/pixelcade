@@ -2,12 +2,67 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+        (function () {
+            var key = "theme";
+            var root = document.documentElement;
+            var stored = localStorage.getItem(key);
+            var theme = stored === "dark" || stored === "light" ? stored : "light";
+            root.setAttribute("data-theme", theme);
+            function bindToggle() {
+                var btn = document.getElementById("theme-toggle");
+                if (!btn) return;
+                function sync() {
+                    var dark = root.getAttribute("data-theme") === "dark";
+                    btn.setAttribute("aria-pressed", dark ? "true" : "false");
+                    btn.setAttribute(
+                        "aria-label",
+                        dark ? "Switch to light mode" : "Switch to dark mode"
+                    );
+                }
+                sync();
+                btn.addEventListener("click", function () {
+                    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+                    root.setAttribute("data-theme", next);
+                    localStorage.setItem(key, next);
+                    sync();
+                });
+            }
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", bindToggle);
+            } else {
+                bindToggle();
+            }
+        })();
+    </script>
     <title>{% block title %}Pixelcade{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
-    <nav aria-label="Main navigation">
+    <nav class="site-nav" aria-label="Main navigation">
+        {% block nav %}
+        <div class="nav-start">
+            <a href="{{ url_for('main.shell') }}" class="nav-brand font-display">Pixelcade</a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('main.shell') }}">Home</a></li>
+                <li><a href="{{ url_for('develop.index') }}">Develop</a></li>
+            </ul>
+        </div>
+        <div class="nav-actions">
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Switch theme">
+                <span class="theme-toggle__icon theme-toggle__icon--light" aria-hidden="true"><i data-lucide="sun"></i></span>
+                <span class="theme-toggle__icon theme-toggle__icon--dark" aria-hidden="true"><i data-lucide="moon"></i></span>
+            </button>
+            <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+            <a class="btn btn--nav-primary" href="{{ url_for('auth.signup') }}">Sign up</a>
+        </div>
+        {% endblock %}
     </nav>
     {% block content %}{% endblock %}
+    {% block scripts %}{% endblock %}
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+    <script>
+        if (typeof lucide !== "undefined") lucide.createIcons();
+    </script>
 </body>
 </html>
