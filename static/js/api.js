@@ -15,7 +15,10 @@ async function parseResponseBody(res) {
   }
 }
 
-async function handleResponse(res, data) {
+async function handleResponse(res, data, options = {}) {
+  if (res.status === 401 && options.allowUnauthorized) {
+    return data;
+  }
   if (res.status === 401) {
     window.location.assign("/auth/login");
     return data;
@@ -31,7 +34,7 @@ async function handleResponse(res, data) {
   return data;
 }
 
-async function request(method, url, body) {
+async function request(method, url, body, options = {}) {
   const headers = { "Content-Type": "application/json" };
   if (method !== "GET") {
     headers["X-CSRFToken"] = csrfToken();
@@ -46,12 +49,12 @@ async function request(method, url, body) {
   }
   const res = await fetch(url, init);
   const data = await parseResponseBody(res);
-  return handleResponse(res, data);
+  return handleResponse(res, data, options);
 }
 
 export const api = {
-  get(url) {
-    return request("GET", url);
+  get(url, options = {}) {
+    return request("GET", url, undefined, options);
   },
   post(url, body) {
     return request("POST", url, body);

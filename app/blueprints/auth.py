@@ -2,6 +2,7 @@ import re
 from datetime import date
 
 from flask import Blueprint, jsonify, request
+from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -139,3 +140,74 @@ def api_signup():
         raise
 
     return jsonify({"message": "Account created"}), 201
+
+
+def _login_bad_request():
+    return jsonify({"error": "Invalid request"}), 400
+
+
+@api_auth_bp.route("/login", methods=["POST"])
+@limiter.limit("5/15 minutes")
+def api_login():
+    if not request.is_json:
+        return _login_bad_request()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _login_bad_request()
+
+    email = data.get("email")
+    password = data.get("password")
+    if email is None or password is None:
+        return _login_bad_request()
+    if not isinstance(email, str) or not isinstance(password, str):
+        return _login_bad_request()
+
+    email_norm = email.strip().lower()
+    user = User.query.filter(func.lower(User.email) == email_norm).first()
+    if user is None or not bcrypt.check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    login_user(user)
+    return (
+        jsonify(
+            {
+                "message": "Logged in",
+                "user": {"id": user.id, "username": user.username},
+            }
+        ),
+        200,
+    )
+
+
+@api_auth_bp.route("/logout", methods=["POST"])
+@login_required
+def api_logout():
+    logout_user()
+    return jsonify({"message": "Logged out"}), 200
+
+
+@api_auth_bp.route("/me", methods=["GET"])
+def api_me():
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    raw_avatar = current_user.avatar
+    avatar = raw_avatar if isinstance(raw_avatar, dict) else {}
+
+    return (
+        jsonify(
+            {
+                "id": current_user.id,
+                "username": current_user.username,
+                "email": current_user.email,
+                "level": current_user.level,
+                "xp": current_user.xp,
+                "pixels": current_user.pixels,
+                "avatar": avatar,
+                "created_at": current_user.created_at.isoformat() + "Z"
+                if current_user.created_at
+                else None,
+            }
+        ),
+        200,
+    )
