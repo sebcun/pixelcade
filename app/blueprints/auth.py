@@ -1,6 +1,29 @@
-from flask import Blueprint
+import re
+from datetime import date
+
+from flask import Blueprint, jsonify, request
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+
+from app.extensions import bcrypt, db, limiter
+from app.models import User
 
 auth_bp = Blueprint("auth", __name__)
+api_auth_bp = Blueprint("api_auth", __name__)
+
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+
+def _signup_error(message: str, field: str):
+    return jsonify({"error": message, "field": field}), 400
+
+
+def _age_on_date(birth: date, on: date) -> int:
+    years = on.year - birth.year
+    if (on.month, on.day) < (birth.month, birth.day):
+        years -= 1
+    return years
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -16,3 +39,103 @@ def signup():
 @auth_bp.route("/logout", methods=["GET", "POST"])
 def logout():
     return "auth logout placeholder"
+
+
+@api_auth_bp.route("/signup", methods=["POST"])
+@limiter.limit("10/hour")
+def api_signup():
+    if not request.is_json:
+        return _signup_error("Request body must be JSON", "body")
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _signup_error("Invalid JSON", "body")
+
+    required = (
+        "username",
+        "email",
+        "password",
+        "confirm_password",
+        "dob",
+        "accept_tos",
+        "accept_privacy",
+    )
+    for key in required:
+        if key not in data:
+            return _signup_error("This field is required", key)
+        if data[key] is None:
+            return _signup_error("This field is required", key)
+
+    username = data["username"]
+    email = data["email"]
+    password = data["password"]
+    confirm_password = data["confirm_password"]
+    dob_raw = data["dob"]
+    accept_tos = data["accept_tos"]
+    accept_privacy = data["accept_privacy"]
+
+    if not isinstance(username, str):
+        return _signup_error("username must be a string", "username")
+    if not isinstance(email, str):
+        return _signup_error("email must be a string", "email")
+    if not isinstance(password, str):
+        return _signup_error("password must be a string", "password")
+    if not isinstance(confirm_password, str):
+        return _signup_error("confirm_password must be a string", "confirm_password")
+    if not isinstance(dob_raw, str):
+        return _signup_error("dob must be an ISO date string", "dob")
+    if not isinstance(accept_tos, bool):
+        return _signup_error("accept_tos must be a boolean", "accept_tos")
+    if not isinstance(accept_privacy, bool):
+        return _signup_error("accept_privacy must be a boolean", "accept_privacy")
+
+    if not accept_tos:
+        return _signup_error("You must accept the Terms of Service", "accept_tos")
+    if not accept_privacy:
+        return _signup_error("You must accept the Privacy Policy", "accept_privacy")
+
+    if password != confirm_password:
+        return _signup_error("Passwords do not match", "confirm_password")
+
+    username_clean = username.strip()
+    if not USERNAME_RE.match(username_clean):
+        return _signup_error(
+            "Username must be 3–20 characters and use only letters, numbers, and underscores",
+            "username",
+        )
+
+    username_stored = username_clean.lower()
+
+    email_norm = email.strip().lower()
+    if not email_norm or not EMAIL_RE.match(email_norm):
+        return _signup_error("Invalid email address", "email")
+
+    try:
+        birth = date.fromisoformat(dob_raw.strip())
+    except ValueError:
+        return _signup_error("Invalid date format; use an ISO date (YYYY-MM-DD)", "dob")
+
+    today = date.today()
+    if _age_on_date(birth, today) < 13:
+        return _signup_error("You must be at least 13 years old", "dob")
+
+    if User.query.filter(func.lower(User.username) == username_stored).first():
+        return _signup_error("Username is already taken", "username")
+    if User.query.filter(func.lower(User.email) == email_norm).first():
+        return _signup_error("Email is already registered", "email")
+
+    raw_hash = bcrypt.generate_password_hash(password, rounds=12)
+    password_hash = raw_hash.decode("utf-8") if isinstance(raw_hash, bytes) else raw_hash
+    user = User(username=username_stored, email=email_norm, password_hash=password_hash)
+    db.session.add(user)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        if User.query.filter(func.lower(User.username) == username_stored).first():
+            return _signup_error("Username is already taken", "username")
+        if User.query.filter(func.lower(User.email) == email_norm).first():
+            return _signup_error("Email is already registered", "email")
+        raise
+
+    return jsonify({"message": "Account created"}), 201
