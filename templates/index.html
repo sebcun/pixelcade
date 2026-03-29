@@ -1,5 +1,621 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Pixelcade</h1>
+<main class="app-shell">
+    <div id="view-home" class="auth-view">
+        <section class="showcase" aria-label="Welcome">
+            <h1 class="font-display">Pixelcade</h1>
+            <p class="showcase-lead">Play and build tiny games in your browser.</p>
+            <div class="showcase-actions">
+                <a class="btn btn--nav-primary" href="{{ url_for('auth.signup') }}">Sign up</a>
+                <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+            </div>
+        </section>
+    </div>
+
+    <div id="auth-modal-root" class="auth-modal-root" aria-hidden="true">
+        <div class="auth-modal__backdrop" data-auth-dismiss aria-hidden="true"></div>
+        <div id="auth-modal-dialog" class="auth-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-login-title">
+            <div class="auth-modal__panels">
+            <div id="view-login" class="auth-modal-panel" aria-hidden="true">
+                <div class="auth-shell auth-shell--modal">
+                    <div class="auth-card auth-card--modal">
+                        <button type="button" class="auth-modal__close" data-auth-dismiss aria-label="Close dialog">&times;</button>
+                        <h1 id="auth-modal-login-title" class="auth-card__title font-display">Log in</h1>
+                        <p class="auth-card__lead" data-form-error="login" role="alert" hidden></p>
+                        <form id="form-login" class="auth-form">
+                            <div class="field">
+                                <label for="login-email">Email</label>
+                                <input id="login-email" name="email" type="text" inputmode="email" autocomplete="email" required>
+                                <p class="field-live-hint" data-live-hint="login-email" aria-live="polite"></p>
+                                <p class="field-error" data-field-error="email" role="alert"></p>
+                            </div>
+                            <div class="field">
+                                <label for="login-password">Password</label>
+                                <div class="field-input-row">
+                                    <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="login-password" aria-pressed="false" aria-label="Show password">Show</button>
+                                </div>
+                                <p class="field-error" data-field-error="password" role="alert"></p>
+                            </div>
+                            <button type="submit" class="btn btn--block btn--auth-submit">Log in</button>
+                        </form>
+                        <p class="auth-switch">
+                            No account?
+                            <a href="{{ url_for('auth.signup') }}">Sign up</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-signup" class="auth-modal-panel" aria-hidden="true">
+                <div class="auth-shell auth-shell--modal">
+                    <div class="auth-card auth-card--modal">
+                        <button type="button" class="auth-modal__close" data-auth-dismiss aria-label="Close dialog">&times;</button>
+                        <h1 id="auth-modal-signup-title" class="auth-card__title font-display">Sign up</h1>
+                        <p class="auth-card__lead" data-form-error="signup" role="alert" hidden></p>
+                        <form id="form-signup" class="auth-form">
+                            <div class="field">
+                                <label for="signup-username">Username</label>
+                                <input id="signup-username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="20">
+                                <p class="field-live-hint" data-live-hint="username" aria-live="polite"></p>
+                                <p class="field-error" data-field-error="username" role="alert"></p>
+                            </div>
+                            <div class="field">
+                                <label for="signup-email">Email</label>
+                                <input id="signup-email" name="email" type="text" inputmode="email" autocomplete="email" required>
+                                <p class="field-live-hint" data-live-hint="signup-email" aria-live="polite"></p>
+                                <p class="field-error" data-field-error="email" role="alert"></p>
+                            </div>
+                            <div class="field">
+                                <label for="signup-password">Password</label>
+                                <div class="field-input-row">
+                                    <input id="signup-password" name="password" type="password" autocomplete="new-password" required>
+                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="signup-password" aria-pressed="false" aria-label="Show password">Show</button>
+                                </div>
+                                <ul class="password-rules" id="signup-password-rules" aria-live="polite">
+                                    <li data-rule="len">At least 8 characters</li>
+                                    <li data-rule="letter">At least one letter</li>
+                                    <li data-rule="number">At least one number</li>
+                                </ul>
+                                <p class="field-error" data-field-error="password" role="alert"></p>
+                            </div>
+                            <div class="field">
+                                <label for="signup-confirm-password">Confirm password</label>
+                                <div class="field-input-row">
+                                    <input id="signup-confirm-password" name="confirm_password" type="password" autocomplete="new-password" required>
+                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="signup-confirm-password" aria-pressed="false" aria-label="Show password">Show</button>
+                                </div>
+                                <p class="field-live-hint" data-live-hint="confirm-password" aria-live="polite"></p>
+                                <p class="field-error" data-field-error="confirm_password" role="alert"></p>
+                            </div>
+                            <div class="field field--check">
+                                <input id="signup-accept-tos" name="accept_tos" type="checkbox" required>
+                                <label for="signup-accept-tos">I accept the <a href="#terms" class="auth-inline-link">Terms of Service</a></label>
+                                <p class="field-error field-error--check" data-field-error="accept_tos" role="alert"></p>
+                            </div>
+                            <div class="field field--check">
+                                <input id="signup-accept-privacy" name="accept_privacy" type="checkbox" required>
+                                <label for="signup-accept-privacy">I accept the <a href="#privacy" class="auth-inline-link">Privacy Policy</a></label>
+                                <p class="field-error field-error--check" data-field-error="accept_privacy" role="alert"></p>
+                            </div>
+                            <button type="submit" class="btn btn--block btn--auth-submit">Create account</button>
+                        </form>
+                        <p class="auth-switch">
+                            Already have an account?
+                            <a href="{{ url_for('auth.login') }}">Log in</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module">
+    import { api } from "{{ url_for('static', filename='js/api.js') }}";
+    import {
+        filterUsernameValue,
+        usernameLiveState,
+        stripEmailSpaces,
+        emailLiveState,
+        passwordMeetsRules,
+        passwordRuleState,
+        bindPasswordToggles,
+        applyPasswordRulesUi,
+    } from "{{ url_for('static', filename='js/auth-forms.js') }}";
+
+    const PATH_LOGIN = "/auth/login";
+    const PATH_SIGNUP = "/auth/signup";
+
+    function normalizePath(pathname) {
+        const trimmed = pathname.replace(/\/+$/, "");
+        return trimmed === "" ? "/" : trimmed;
+    }
+
+    function authPanelFromPath(path) {
+        if (path === PATH_LOGIN) return "login";
+        if (path === PATH_SIGNUP) return "signup";
+        return null;
+    }
+
+    function authPanelFromHref(href) {
+        if (!href || href.startsWith("#")) return null;
+        try {
+            const url = new URL(href, window.location.origin);
+            if (url.origin !== window.location.origin) return null;
+            return authPanelFromPath(normalizePath(url.pathname));
+        } catch {
+            return null;
+        }
+    }
+
+    let prevAuthPanel = null;
+
+    function isUserLoggedIn() {
+        const u = window.currentUser;
+        return Boolean(u && u.id != null && u.username);
+    }
+
+    function getAuthPanel() {
+        const path = normalizePath(window.location.pathname);
+        if (path === PATH_LOGIN || path === PATH_SIGNUP) {
+            return authPanelFromPath(path);
+        }
+        if (path === "/") {
+            const s = history.state && history.state.authModal;
+            if (s === "login" || s === "signup") {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    function canonicalizeAuthUrl() {
+        const path = normalizePath(window.location.pathname);
+        const panel = authPanelFromPath(path);
+        if (panel) {
+            if (isUserLoggedIn()) {
+                history.replaceState({}, "", "/");
+            } else {
+                history.replaceState({ authModal: panel }, "", "/");
+            }
+        }
+    }
+
+    function applyRoute() {
+        const path = normalizePath(window.location.pathname);
+        const home = document.getElementById("view-home");
+        const modalRoot = document.getElementById("auth-modal-root");
+        const dialog = document.getElementById("auth-modal-dialog");
+        const login = document.getElementById("view-login");
+        const signup = document.getElementById("view-signup");
+        if (!home || !modalRoot || !login || !signup) return;
+
+        if (isUserLoggedIn() && getAuthPanel()) {
+            history.replaceState({}, "", "/");
+        }
+        const panel = isUserLoggedIn() ? null : getAuthPanel();
+        const authOpen = panel === "login" || panel === "signup";
+        const isLogin = panel === "login";
+        const isSignup = panel === "signup";
+
+        home.hidden = false;
+
+        if (authOpen) {
+            modalRoot.classList.add("is-open");
+            modalRoot.setAttribute("aria-hidden", "false");
+            login.classList.toggle("auth-modal-panel--active", isLogin);
+            signup.classList.toggle("auth-modal-panel--active", isSignup);
+            login.setAttribute("aria-hidden", isLogin ? "false" : "true");
+            signup.setAttribute("aria-hidden", isSignup ? "false" : "true");
+            if (dialog) {
+                dialog.setAttribute(
+                    "aria-labelledby",
+                    isLogin ? "auth-modal-login-title" : "auth-modal-signup-title"
+                );
+            }
+            document.body.classList.add("auth-modal-is-open");
+            if (panel !== prevAuthPanel) {
+                const focusSel = isLogin ? "#login-email" : "#signup-username";
+                queueMicrotask(() => document.querySelector(focusSel)?.focus());
+            }
+        } else {
+            modalRoot.classList.remove("is-open");
+            modalRoot.setAttribute("aria-hidden", "true");
+            login.classList.remove("auth-modal-panel--active");
+            signup.classList.remove("auth-modal-panel--active");
+            login.setAttribute("aria-hidden", "true");
+            signup.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("auth-modal-is-open");
+        }
+
+        prevAuthPanel = panel;
+
+        document.title =
+            isLogin ? "Log in — Pixelcade" : isSignup ? "Sign up — Pixelcade" : "Pixelcade";
+    }
+
+    function navigateAuth(panel) {
+        if (isUserLoggedIn()) {
+            history.replaceState({}, "", "/");
+            applyRoute();
+            return;
+        }
+        history.pushState({ authModal: panel }, "", "/");
+        applyRoute();
+    }
+
+    function dismissAuthModal() {
+        if (!getAuthPanel()) return;
+        history.replaceState({}, "", "/");
+        applyRoute();
+    }
+
+    async function finishAuthSuccess() {
+        history.replaceState({}, "", "/");
+        applyRoute();
+        document.getElementById("form-login")?.reset();
+        document.getElementById("form-signup")?.reset();
+        document.querySelectorAll(".auth-form [data-live-hint]").forEach((el) => {
+            el.textContent = "";
+            el.classList.remove("field-live-hint--invalid", "field-live-hint--valid");
+        });
+        document.querySelectorAll(".auth-form .input--invalid").forEach((el) => {
+            el.classList.remove("input--invalid");
+        });
+        const rulesEl = document.getElementById("signup-password-rules");
+        if (rulesEl) {
+            applyPasswordRulesUi(rulesEl, "");
+        }
+        if (typeof window.pixelcadeSyncCurrentUser === "function") {
+            await window.pixelcadeSyncCurrentUser();
+        }
+    }
+
+    document.addEventListener("click", (e) => {
+        if (e.defaultPrevented) return;
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        const a = e.target.closest("a");
+        if (!a) return;
+        const panel = authPanelFromHref(a.getAttribute("href"));
+        if (!panel) return;
+        e.preventDefault();
+        navigateAuth(panel);
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (getAuthPanel()) {
+            e.preventDefault();
+            dismissAuthModal();
+        }
+    });
+
+    document.querySelectorAll("[data-auth-dismiss]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+            e.preventDefault();
+            dismissAuthModal();
+        });
+    });
+
+    window.addEventListener("popstate", applyRoute);
+    window.addEventListener("pixelcade-user-sync", applyRoute);
+
+    function clearAuthErrors(form) {
+        const scope = form.closest(".auth-card") || form;
+        scope.querySelectorAll("[data-field-error]").forEach((el) => {
+            el.textContent = "";
+        });
+        scope.querySelectorAll("[data-form-error]").forEach((el) => {
+            el.textContent = "";
+            el.hidden = true;
+        });
+    }
+
+    function showFormError(form, message) {
+        const scope = form.closest(".auth-card") || form;
+        const el = scope.querySelector("[data-form-error]");
+        if (el) {
+            el.textContent = message;
+            el.hidden = false;
+        }
+    }
+
+    function applyApiErrors(form, data) {
+        const msg = data?.error != null && String(data.error) !== "" ? String(data.error) : "Something went wrong";
+        const field = data?.field;
+        if (field && typeof field === "string") {
+            const fieldEl = form.querySelector(`[data-field-error="${field}"]`);
+            if (fieldEl) {
+                fieldEl.textContent = msg;
+                return;
+            }
+        }
+        showFormError(form, msg);
+    }
+
+    function setSubmitLoading(button, loading, loadingLabel, idleLabel) {
+        if (!button) return;
+        if (loading) {
+            button.disabled = true;
+            button.setAttribute("aria-busy", "true");
+            button.dataset.idleLabel = idleLabel;
+            button.textContent = loadingLabel;
+        } else {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+            button.textContent = button.dataset.idleLabel || idleLabel;
+        }
+    }
+
+    function setLiveHint(form, key, text, opts = {}) {
+        const invalid = opts.invalid === true;
+        const valid = opts.valid === true;
+        const el = form.querySelector(`[data-live-hint="${key}"]`);
+        if (!el) return;
+        el.textContent = text;
+        el.classList.toggle("field-live-hint--invalid", Boolean(invalid && text));
+        el.classList.toggle("field-live-hint--valid", Boolean(valid && text));
+    }
+
+    function setInputInvalid(input, invalid) {
+        if (!input) return;
+        input.classList.toggle("input--invalid", Boolean(invalid));
+    }
+
+    function setupLoginLive() {
+        const form = document.getElementById("form-login");
+        if (!form) return;
+        const emailInput = form.querySelector("#login-email");
+        const passInput = form.querySelector("#login-password");
+
+        emailInput?.addEventListener("input", () => {
+            const cleaned = stripEmailSpaces(emailInput.value);
+            if (cleaned !== emailInput.value) emailInput.value = cleaned;
+            form.querySelector('[data-field-error="email"]').textContent = "";
+            const st = emailLiveState(cleaned);
+            setLiveHint(form, "login-email", st.hint, { invalid: st.ok === false });
+            setInputInvalid(emailInput, st.ok === false);
+        });
+
+        passInput?.addEventListener("input", () => {
+            form.querySelector('[data-field-error="password"]').textContent = "";
+        });
+
+        bindPasswordToggles(form);
+    }
+
+    function setupSignupLive() {
+        const form = document.getElementById("form-signup");
+        if (!form) return;
+        const userInput = form.querySelector("#signup-username");
+        const emailInput = form.querySelector("#signup-email");
+        const passInput = form.querySelector("#signup-password");
+        const confirmInput = form.querySelector("#signup-confirm-password");
+        const rulesEl = document.getElementById("signup-password-rules");
+
+        userInput?.addEventListener("input", () => {
+            const next = filterUsernameValue(userInput.value);
+            if (next !== userInput.value) userInput.value = next;
+            form.querySelector('[data-field-error="username"]').textContent = "";
+            const st = usernameLiveState(next);
+            setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
+            setInputInvalid(userInput, st.ok === false);
+        });
+
+        emailInput?.addEventListener("input", () => {
+            const cleaned = stripEmailSpaces(emailInput.value);
+            if (cleaned !== emailInput.value) emailInput.value = cleaned;
+            form.querySelector('[data-field-error="email"]').textContent = "";
+            const st = emailLiveState(cleaned);
+            setLiveHint(form, "signup-email", st.hint, { invalid: st.ok === false });
+            setInputInvalid(emailInput, st.ok === false);
+        });
+
+        function refreshConfirm() {
+            const pw = passInput?.value ?? "";
+            const cf = confirmInput?.value ?? "";
+            form.querySelector('[data-field-error="confirm_password"]').textContent = "";
+            let hint = "";
+            let invalid = false;
+            let valid = false;
+            if (cf.length === 0) {
+                hint = "";
+            } else if (pw !== cf) {
+                hint = "Passwords do not match.";
+                invalid = true;
+            } else if (passwordMeetsRules(pw)) {
+                hint = "Passwords match.";
+                valid = true;
+            }
+            setLiveHint(form, "confirm-password", hint, { invalid, valid });
+            setInputInvalid(confirmInput, invalid);
+        }
+
+        passInput?.addEventListener("input", () => {
+            const pw = passInput.value;
+            form.querySelector('[data-field-error="password"]').textContent = "";
+            applyPasswordRulesUi(rulesEl, pw);
+            const ok = passwordMeetsRules(pw);
+            setInputInvalid(passInput, pw.length > 0 && !ok);
+            refreshConfirm();
+        });
+
+        confirmInput?.addEventListener("input", refreshConfirm);
+
+        bindPasswordToggles(form);
+
+        if (passInput && rulesEl) {
+            applyPasswordRulesUi(rulesEl, passInput.value);
+        }
+
+        if (userInput) {
+            const st = usernameLiveState(userInput.value);
+            setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
+        }
+    }
+
+    function signupClientValid(form) {
+        const userInput = form.querySelector("#signup-username");
+        const emailInput = form.querySelector("#signup-email");
+        const passInput = form.querySelector("#signup-password");
+        const confirmInput = form.querySelector("#signup-confirm-password");
+        const u = userInput?.value ?? "";
+        const em = emailInput?.value ?? "";
+        const pw = passInput?.value ?? "";
+        const cf = confirmInput?.value ?? "";
+
+        let ok = true;
+        const uSt = usernameLiveState(u);
+        if (uSt.ok !== true) {
+            setLiveHint(form, "username", uSt.hint || "Username is required.", { invalid: true });
+            setInputInvalid(userInput, true);
+            ok = false;
+        }
+        const eSt = emailLiveState(em);
+        if (eSt.ok !== true) {
+            setLiveHint(form, "signup-email", eSt.ok === false ? eSt.hint : "Email is required.", {
+                invalid: true,
+            });
+            setInputInvalid(emailInput, true);
+            ok = false;
+        }
+        if (!passwordMeetsRules(pw)) {
+            let msg = "Password must meet all requirements below.";
+            if (pw.length === 0) msg = "Password is required.";
+            form.querySelector('[data-field-error="password"]').textContent = msg;
+            setInputInvalid(passInput, true);
+            ok = false;
+        }
+        if (cf.length === 0) {
+            setLiveHint(form, "confirm-password", "Confirm your password.", { invalid: true });
+            setInputInvalid(confirmInput, true);
+            ok = false;
+        } else if (pw !== cf) {
+            setLiveHint(form, "confirm-password", "Passwords do not match.", { invalid: true });
+            setInputInvalid(confirmInput, true);
+            ok = false;
+        } else if (passwordMeetsRules(pw)) {
+            setLiveHint(form, "confirm-password", "Passwords match.", { valid: true });
+            setInputInvalid(confirmInput, false);
+        } else {
+            setLiveHint(form, "confirm-password", "", {});
+            setInputInvalid(confirmInput, false);
+        }
+        return ok;
+    }
+
+    function loginClientValid(form) {
+        const emailInput = form.querySelector("#login-email");
+        const em = stripEmailSpaces(emailInput?.value ?? "");
+        const eSt = emailLiveState(em);
+        if (eSt.ok !== true) {
+            setLiveHint(form, "login-email", eSt.ok === false ? eSt.hint : "Email is required.", {
+                invalid: true,
+            });
+            setInputInvalid(emailInput, true);
+            return false;
+        }
+        return true;
+    }
+
+    canonicalizeAuthUrl();
+    applyRoute();
+    setupLoginLive();
+    setupSignupLive();
+
+    const loginForm = document.getElementById("form-login");
+    if (loginForm) {
+        const submitBtn = loginForm.querySelector('button[type="submit"]');
+        const idleLabel = submitBtn ? submitBtn.textContent : "Log in";
+
+        loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            clearAuthErrors(loginForm);
+
+            const emailInput = loginForm.querySelector("#login-email");
+            const email = stripEmailSpaces(emailInput?.value ?? "");
+            if (emailInput) emailInput.value = email;
+            const password = loginForm.querySelector("#login-password")?.value ?? "";
+
+            if (!loginClientValid(loginForm)) {
+                return;
+            }
+
+            setSubmitLoading(submitBtn, true, "Signing in…", idleLabel);
+            try {
+                const result = await api.post(
+                    "/api/auth/login",
+                    { email, password },
+                    { asResult: true }
+                );
+
+                if (result.ok) {
+                    setSubmitLoading(submitBtn, false, "", idleLabel);
+                    await finishAuthSuccess();
+                    return;
+                }
+
+                applyApiErrors(loginForm, result.data);
+            } catch (err) {
+                showFormError(loginForm, err instanceof Error ? err.message : "Request failed");
+            } finally {
+                if (getAuthPanel() === "login") {
+                    setSubmitLoading(submitBtn, false, "", idleLabel);
+                }
+            }
+        });
+    }
+
+    const signupForm = document.getElementById("form-signup");
+    if (signupForm) {
+        const submitBtn = signupForm.querySelector('button[type="submit"]');
+        const idleLabel = submitBtn ? submitBtn.textContent : "Create account";
+
+        signupForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            clearAuthErrors(signupForm);
+
+            const userInput = signupForm.querySelector("#signup-username");
+            const emailInput = signupForm.querySelector("#signup-email");
+            const payload = {
+                username: userInput?.value?.trim() ?? "",
+                email: stripEmailSpaces(emailInput?.value ?? ""),
+                password: signupForm.querySelector("#signup-password")?.value ?? "",
+                confirm_password: signupForm.querySelector("#signup-confirm-password")?.value ?? "",
+                accept_tos: signupForm.querySelector("#signup-accept-tos")?.checked === true,
+                accept_privacy: signupForm.querySelector("#signup-accept-privacy")?.checked === true,
+            };
+
+            if (emailInput) emailInput.value = payload.email;
+
+            if (!signupClientValid(signupForm)) {
+                return;
+            }
+
+            setSubmitLoading(submitBtn, true, "Creating account…", idleLabel);
+            try {
+                const result = await api.post("/api/auth/signup", payload, { asResult: true });
+
+                if (result.ok) {
+                    setSubmitLoading(submitBtn, false, "", idleLabel);
+                    await finishAuthSuccess();
+                    return;
+                }
+
+                applyApiErrors(signupForm, result.data);
+            } catch (err) {
+                showFormError(signupForm, err instanceof Error ? err.message : "Request failed");
+            } finally {
+                if (getAuthPanel() === "signup") {
+                    setSubmitLoading(submitBtn, false, "", idleLabel);
+                }
+            }
+        });
+    }
+</script>
 {% endblock %}

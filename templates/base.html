@@ -116,7 +116,10 @@
                 window.currentUser = null;
             }
             updateNavFromCurrentUser();
+            window.dispatchEvent(new CustomEvent("pixelcade-user-sync"));
         }
+
+        window.pixelcadeSyncCurrentUser = syncCurrentUser;
 
         if (document.readyState === "loading") {
             document.addEventListener("DOMContentLoaded", syncCurrentUser);

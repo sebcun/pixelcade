@@ -1,5 +1,3 @@
-import hmac
-
 from flask import jsonify, redirect, request, url_for
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
@@ -7,7 +5,8 @@ from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
-from flask_wtf.csrf import generate_csrf
+from flask_wtf.csrf import validate_csrf
+from wtforms import ValidationError
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -19,11 +18,12 @@ csrf = CSRFProtect()
 def _api_csrf_header_guard():
     if request.method == "GET":
         return None
-    token = request.headers.get("X-CSRFToken", "")
-    expected = generate_csrf()
-    if not token or len(token) != len(expected) or not hmac.compare_digest(
-        token, expected
-    ):
+    token = request.headers.get("X-CSRFToken") or request.headers.get("X-CSRF-Token") or ""
+    if not token:
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    try:
+        validate_csrf(token)
+    except ValidationError:
         return jsonify({"error": "CSRF token missing or invalid"}), 403
 
 

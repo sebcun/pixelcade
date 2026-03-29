@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from typing import Optional
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required, login_user, logout_user
@@ -14,17 +14,21 @@ api_auth_bp = Blueprint("api_auth", __name__)
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
 EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+PASSWORD_MIN_LEN = 8
 
 
 def _signup_error(message: str, field: str):
     return jsonify({"error": message, "field": field}), 400
 
 
-def _age_on_date(birth: date, on: date) -> int:
-    years = on.year - birth.year
-    if (on.month, on.day) < (birth.month, birth.day):
-        years -= 1
-    return years
+def _password_error_message(password: str) -> Optional[str]:
+    if len(password) < PASSWORD_MIN_LEN:
+        return f"Password must be at least {PASSWORD_MIN_LEN} characters"
+    if not re.search(r"[A-Za-z]", password):
+        return "Password must include at least one letter"
+    if not re.search(r"\d", password):
+        return "Password must include at least one number"
+    return None
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -57,7 +61,6 @@ def api_signup():
         "email",
         "password",
         "confirm_password",
-        "dob",
         "accept_tos",
         "accept_privacy",
     )
@@ -71,7 +74,6 @@ def api_signup():
     email = data["email"]
     password = data["password"]
     confirm_password = data["confirm_password"]
-    dob_raw = data["dob"]
     accept_tos = data["accept_tos"]
     accept_privacy = data["accept_privacy"]
 
@@ -83,8 +85,6 @@ def api_signup():
         return _signup_error("password must be a string", "password")
     if not isinstance(confirm_password, str):
         return _signup_error("confirm_password must be a string", "confirm_password")
-    if not isinstance(dob_raw, str):
-        return _signup_error("dob must be an ISO date string", "dob")
     if not isinstance(accept_tos, bool):
         return _signup_error("accept_tos must be a boolean", "accept_tos")
     if not isinstance(accept_privacy, bool):
@@ -98,6 +98,10 @@ def api_signup():
     if password != confirm_password:
         return _signup_error("Passwords do not match", "confirm_password")
 
+    pwd_msg = _password_error_message(password)
+    if pwd_msg:
+        return _signup_error(pwd_msg, "password")
+
     username_clean = username.strip()
     if not USERNAME_RE.match(username_clean):
         return _signup_error(
@@ -110,15 +114,6 @@ def api_signup():
     email_norm = email.strip().lower()
     if not email_norm or not EMAIL_RE.match(email_norm):
         return _signup_error("Invalid email address", "email")
-
-    try:
-        birth = date.fromisoformat(dob_raw.strip())
-    except ValueError:
-        return _signup_error("Invalid date format; use an ISO date (YYYY-MM-DD)", "dob")
-
-    today = date.today()
-    if _age_on_date(birth, today) < 13:
-        return _signup_error("You must be at least 13 years old", "dob")
 
     if User.query.filter(func.lower(User.username) == username_stored).first():
         return _signup_error("Username is already taken", "username")
@@ -139,7 +134,16 @@ def api_signup():
             return _signup_error("Email is already registered", "email")
         raise
 
-    return jsonify({"message": "Account created"}), 201
+    login_user(user)
+    return (
+        jsonify(
+            {
+                "message": "Account created",
+                "user": {"id": user.id, "username": user.username},
+            }
+        ),
+        201,
+    )
 
 
 def _login_bad_request():
