@@ -1,134 +1,167 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <script>
-        (function () {
-            var key = "theme";
-            var root = document.documentElement;
-            var stored = localStorage.getItem(key);
-            var theme = stored === "dark" || stored === "light" ? stored : "light";
-            root.setAttribute("data-theme", theme);
-            function bindToggle() {
-                var btn = document.getElementById("theme-toggle");
-                if (!btn) return;
-                function sync() {
-                    var dark = root.getAttribute("data-theme") === "dark";
-                    btn.setAttribute("aria-pressed", dark ? "true" : "false");
-                    btn.setAttribute(
-                        "aria-label",
-                        dark ? "Switch to light mode" : "Switch to dark mode"
-                    );
-                }
-                sync();
-                btn.addEventListener("click", function () {
-                    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-                    root.setAttribute("data-theme", next);
-                    localStorage.setItem(key, next);
-                    sync();
-                });
-            }
-            if (document.readyState === "loading") {
-                document.addEventListener("DOMContentLoaded", bindToggle);
-            } else {
-                bindToggle();
-            }
-        })();
+      (function () {
+        var key = "theme";
+        var root = document.documentElement;
+        var stored = localStorage.getItem(key);
+        var theme = stored === "dark" || stored === "light" ? stored : "light";
+        root.setAttribute("data-theme", theme);
+        function bindToggle() {
+          var btn = document.getElementById("theme-toggle");
+          if (!btn) return;
+          function sync() {
+            var dark = root.getAttribute("data-theme") === "dark";
+            btn.setAttribute("aria-pressed", dark ? "true" : "false");
+            btn.setAttribute(
+              "aria-label",
+              dark ? "Switch to light mode" : "Switch to dark mode",
+            );
+          }
+          sync();
+          btn.addEventListener("click", function () {
+            var next =
+              root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            root.setAttribute("data-theme", next);
+            localStorage.setItem(key, next);
+            sync();
+          });
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", bindToggle);
+        } else {
+          bindToggle();
+        }
+      })();
     </script>
     <title>{% block title %}Pixelcade{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+  </head>
+  <body>
     <nav class="site-nav" aria-label="Main navigation">
-        {% block nav %}
-        <div id="nav-cluster-player" class="nav-cluster">
-            <div class="nav-start">
-                <a href="{{ url_for('main.shell') }}" class="nav-brand font-display" data-spa-nav>Pixelcade</a>
-                <ul class="nav-links">
-                    <li><a href="{{ url_for('main.shell') }}" data-spa-nav>Home</a></li>
-                    <li><a href="{{ url_for('develop.index') }}" data-spa-nav>Develop</a></li>
-                </ul>
-            </div>
+      {% block nav %}
+      <div id="nav-cluster-player" class="nav-cluster">
+        <div class="nav-start">
+          <a
+            href="{{ url_for('main.shell') }}"
+            class="nav-brand font-display"
+            data-spa-nav
+            >Pixelcade</a
+          >
+          <ul class="nav-links">
+            <li><a href="{{ url_for('main.shell') }}" data-spa-nav>Home</a></li>
+            <li>
+              <a href="{{ url_for('develop.index') }}" data-spa-nav>Develop</a>
+            </li>
+          </ul>
         </div>
-        <div class="nav-actions">
-            <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Switch theme">
-                <span class="theme-toggle__icon theme-toggle__icon--light" aria-hidden="true"><i data-lucide="sun"></i></span>
-                <span class="theme-toggle__icon theme-toggle__icon--dark" aria-hidden="true"><i data-lucide="moon"></i></span>
-            </button>
-            <div class="nav-auth-slot" id="nav-auth-slot"></div>
-            <div class="nav-develop-user-slot" id="nav-develop-user-slot" hidden></div>
-        </div>
-        {% endblock %}
+      </div>
+      <div class="nav-actions">
+        <button
+          type="button"
+          class="theme-toggle"
+          id="theme-toggle"
+          aria-pressed="false"
+          aria-label="Switch theme"
+        >
+          <span
+            class="theme-toggle__icon theme-toggle__icon--light"
+            aria-hidden="true"
+            ><i data-lucide="sun"></i
+          ></span>
+          <span
+            class="theme-toggle__icon theme-toggle__icon--dark"
+            aria-hidden="true"
+            ><i data-lucide="moon"></i
+          ></span>
+        </button>
+        <div class="nav-auth-slot" id="nav-auth-slot"></div>
+        <div
+          class="nav-develop-user-slot"
+          id="nav-develop-user-slot"
+          hidden
+        ></div>
+      </div>
+      {% endblock %}
     </nav>
     {% block content %}{% endblock %}
+    <div id="toast-root" class="toast-root" aria-live="polite"></div>
     {% block scripts %}{% endblock %}
-    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+    <script
+      src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"
+      crossorigin="anonymous"
+    ></script>
     <script>
-        if (typeof lucide !== "undefined") lucide.createIcons();
+      if (typeof lucide !== "undefined") lucide.createIcons();
     </script>
     <script type="module">
-        import { api } from "{{ url_for('static', filename='js/api.js') }}";
+      import { api } from "{{ url_for('static', filename='js/api.js') }}";
 
-        window.currentUser = null;
+      window.currentUser = null;
 
-        function renderNavAuthGuest(slot) {
-            slot.replaceChildren();
-            const login = document.createElement("a");
-            login.className = "btn btn--nav-secondary";
-            login.href = "{{ url_for('auth.login') }}";
-            login.textContent = "Log in";
-            const signup = document.createElement("a");
-            signup.className = "btn btn--nav-primary";
-            signup.href = "{{ url_for('auth.signup') }}";
-            signup.textContent = "Sign up";
-            slot.appendChild(login);
-            slot.appendChild(signup);
-        }
+      function renderNavAuthGuest(slot) {
+        slot.replaceChildren();
+        const login = document.createElement("a");
+        login.className = "btn btn--nav-secondary";
+        login.href = "{{ url_for('auth.login') }}";
+        login.textContent = "Log in";
+        const signup = document.createElement("a");
+        signup.className = "btn btn--nav-primary";
+        signup.href = "{{ url_for('auth.signup') }}";
+        signup.textContent = "Sign up";
+        slot.appendChild(login);
+        slot.appendChild(signup);
+      }
 
-        function renderNavAuthUser(slot, username) {
-            slot.replaceChildren();
-            const profile = document.createElement("a");
-            profile.className = "btn btn--nav-secondary";
-            profile.href = "/profile/" + encodeURIComponent(username);
-            profile.textContent = username;
-            slot.appendChild(profile);
-        }
+      function renderNavAuthUser(slot, username) {
+        slot.replaceChildren();
+        const profile = document.createElement("a");
+        profile.className = "btn btn--nav-secondary";
+        profile.href = "/profile/" + encodeURIComponent(username);
+        profile.textContent = `@${username}`;
+        slot.appendChild(profile);
+      }
 
-        function updateNavFromCurrentUser() {
-            var slot = document.getElementById("nav-auth-slot");
-            if (!slot) return;
-            var u = window.currentUser;
-            if (u && u.id != null && u.username) {
-                renderNavAuthUser(slot, u.username);
-            } else {
-                renderNavAuthGuest(slot);
-            }
-            if (typeof lucide !== "undefined") lucide.createIcons();
-        }
-
-        async function syncCurrentUser() {
-            try {
-                var data = await api.get("/api/auth/me", { allowUnauthorized: true });
-                if (data && data.id != null && data.username) {
-                    window.currentUser = data;
-                } else {
-                    window.currentUser = null;
-                }
-            } catch (e) {
-                window.currentUser = null;
-            }
-            updateNavFromCurrentUser();
-            window.dispatchEvent(new CustomEvent("pixelcade-user-sync"));
-        }
-
-        window.pixelcadeSyncCurrentUser = syncCurrentUser;
-
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", syncCurrentUser);
+      function updateNavFromCurrentUser() {
+        var slot = document.getElementById("nav-auth-slot");
+        if (!slot) return;
+        var u = window.currentUser;
+        if (u && u.id != null && u.username) {
+          renderNavAuthUser(slot, u.username);
         } else {
-            syncCurrentUser();
+          renderNavAuthGuest(slot);
         }
+        if (typeof lucide !== "undefined") lucide.createIcons();
+      }
+
+      async function syncCurrentUser() {
+        try {
+          var data = await api.get("/api/auth/me", { allowUnauthorized: true });
+          if (data && data.id != null && data.username) {
+            window.currentUser = data;
+          } else {
+            window.currentUser = null;
+          }
+        } catch (e) {
+          window.currentUser = null;
+        }
+        updateNavFromCurrentUser();
+        window.dispatchEvent(new CustomEvent("pixelcade-user-sync"));
+      }
+
+      window.pixelcadeSyncCurrentUser = syncCurrentUser;
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", syncCurrentUser);
+      } else {
+        syncCurrentUser();
+      }
     </script>
-</body>
+  </body>
 </html>

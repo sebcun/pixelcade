@@ -29,18 +29,59 @@
     </div>
 
     <div id="view-develop-settings" class="develop-shell" hidden>
-        <div class="develop-layout develop-layout--narrow">
-            <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
-            <h1 class="develop-page-title develop-page-title--sub">Game settings</h1>
-            <p class="develop-page-lead">Configure title, visibility, and thumbnail before you publish.</p>
-            <p class="develop-stub">Experience ID: <strong id="develop-settings-game-id">—</strong></p>
-            <p class="develop-stub develop-stub--muted">Game</p>
+        <div class="develop-layout">
+            <header class="develop-settings-top">
+                <div class="develop-settings-top__main">
+                    <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
+                    <h1 id="develop-settings-heading" class="develop-page-title develop-page-title--sub">Game settings</h1>
+                    <p class="develop-page-lead develop-page-lead--wide">Set the title, description, and who can see your game. Save before leaving if you changed anything.</p>
+                </div>
+                <a id="develop-settings-editor-link" href="/develop" class="btn btn--nav-secondary develop-settings-editor-btn" data-spa-nav>Open editor</a>
+            </header>
+
+            <p id="develop-settings-load-error" class="develop-banner develop-banner--error" role="alert" hidden></p>
+            <p id="develop-settings-loading" class="develop-settings-loading" role="status">Loading game…</p>
+
+            <form id="form-game-settings" class="develop-form develop-settings-panel" hidden>
+                <p id="develop-settings-form-error" class="develop-banner develop-banner--error develop-banner--compact" role="alert" hidden></p>
+
+                <div class="field">
+                    <label for="game-settings-title">Title</label>
+                    <input id="game-settings-title" name="title" type="text" autocomplete="off" maxlength="200" placeholder="Untitled game">
+                </div>
+
+                <div class="field">
+                    <label for="game-settings-description">Description</label>
+                    <textarea id="game-settings-description" name="description" rows="5" maxlength="8000" placeholder="What is this game about?"></textarea>
+                </div>
+
+                <div class="field">
+                    <label for="game-settings-status">Visibility</label>
+                    <select id="game-settings-status" name="status" aria-describedby="game-settings-status-hint">
+                        <option value="private">Private — only you</option>
+                        <option value="unlisted">Unlisted — anyone with the link</option>
+                        <option value="public">Public — listed on Pixelcade</option>
+                    </select>
+                    <p id="game-settings-status-hint" class="develop-field-hint">Unlisted and public require a title and description.</p>
+                </div>
+
+                <div class="develop-settings-actions">
+                    <button type="submit" class="btn btn--nav-primary">Save changes</button>
+                    <button type="button" class="btn btn--nav-secondary" id="btn-game-publish">Publish</button>
+                </div>
+            </form>
+
+            <section id="develop-settings-danger" class="develop-danger-zone develop-settings-panel" hidden aria-labelledby="develop-danger-heading">
+                <h2 id="develop-danger-heading" class="develop-danger-zone__title">Danger zone</h2>
+                <p class="develop-danger-zone__lead">Permanently delete this game, including all scenes, scripts, sprites, and stats. This cannot be undone.</p>
+                <button type="button" class="btn develop-btn--danger" id="btn-game-delete">Delete game</button>
+            </section>
         </div>
     </div>
 
     <div id="view-develop-editor" class="develop-shell" hidden>
-        <div class="develop-layout develop-layout--narrow">
-            <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
+        <div class="develop-layout">
+            <a href="/develop" class="develop-back-link" data-spa-nav id="develop-editor-settings-link">← Experience Settings</a>
             <h1 class="develop-page-title develop-page-title--sub">Editor</h1>
             <p class="develop-page-lead">Description.</p>
             <p class="develop-stub">Experience ID: <strong id="develop-editor-game-id">—</strong></p>
@@ -49,7 +90,7 @@
     </div>
 
     <div id="view-develop-unknown" class="develop-shell" hidden>
-        <div class="develop-layout develop-layout--narrow">
+        <div class="develop-layout">
             <h1 class="develop-page-title develop-page-title--sub">Page not found</h1>
             <p class="develop-page-lead">That developer URL does not exist.</p>
             <a href="/develop" class="btn btn--nav-primary" data-spa-nav>Back to Create</a>

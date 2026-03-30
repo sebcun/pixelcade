@@ -1,4 +1,8 @@
 import { api } from "./api.js";
+import {
+  refreshGameSettingsView,
+  syncGameSettingsGameId,
+} from "./game-settings.js";
 
 function normalizePath(pathname) {
   const trimmed = pathname.replace(/\/+$/, "");
@@ -74,7 +78,7 @@ function fillDevelopUserSlot() {
     const a = document.createElement("a");
     a.className = "btn btn--nav-secondary nav-develop-username";
     a.href = "/profile/" + encodeURIComponent(u.username);
-    a.textContent = u.username;
+    a.textContent = `@${u.username}`;
     slot.appendChild(a);
   } else {
     const home = document.createElement("a");
@@ -152,9 +156,9 @@ function renderDevelopGamesGrid(games) {
     actions.className = "develop-game-card__actions";
     const ed = document.createElement("a");
     ed.className = "btn btn--develop-editor";
-    ed.href = `/develop/game/${id}/editor`;
+    ed.href = `/develop/game/${id}/settings`;
     ed.setAttribute("data-spa-nav", "");
-    ed.textContent = "Open Editor";
+    ed.textContent = "Open";
     actions.appendChild(ed);
     body.appendChild(actions);
 
@@ -212,7 +216,8 @@ function bindNewGameOnce() {
     } catch (e) {
       const errEl = document.getElementById("develop-home-error");
       if (errEl) {
-        errEl.textContent = e instanceof Error ? e.message : "Could not create game";
+        errEl.textContent =
+          e instanceof Error ? e.message : "Could not create game";
         errEl.hidden = false;
       }
     } finally {
@@ -224,10 +229,13 @@ function bindNewGameOnce() {
 }
 
 function setStubIds(gameId) {
-  const s = document.getElementById("develop-settings-game-id");
   const e = document.getElementById("develop-editor-game-id");
-  if (s) s.textContent = gameId != null ? String(gameId) : "—";
   if (e) e.textContent = gameId != null ? String(gameId) : "—";
+
+  const l = document.getElementById("develop-editor-settings-link");
+  if (l) {
+    l.href = gameId != null ? `/develop/game/${gameId}/settings` : "#";
+  }
 }
 
 export function applyShellRoute() {
@@ -259,7 +267,8 @@ export function applyShellRoute() {
     loadDevelopGames();
     document.title = "Create — Pixelcade";
   } else if (onDev && route.kind === "settings") {
-    setStubIds(route.gameId);
+    syncGameSettingsGameId(route.gameId);
+    refreshGameSettingsView(route.gameId);
     document.title = "Game settings — Pixelcade";
   } else if (onDev && route.kind === "editor") {
     setStubIds(route.gameId);
@@ -279,7 +288,8 @@ function spaPath(pathname) {
 
 function onSpaClick(e) {
   if (e.defaultPrevented) return;
-  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    return;
   const a = e.target.closest("a");
   if (!a) return;
   if (a.hasAttribute("data-no-spa")) return;
