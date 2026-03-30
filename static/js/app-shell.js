@@ -3,6 +3,10 @@ import {
   refreshGameSettingsView,
   syncGameSettingsGameId,
 } from "./game-settings.js";
+import {
+  refreshGameEditorView,
+  syncGameEditorGameId,
+} from "./game-editor.js";
 
 function normalizePath(pathname) {
   const trimmed = pathname.replace(/\/+$/, "");
@@ -229,9 +233,6 @@ function bindNewGameOnce() {
 }
 
 function setStubIds(gameId) {
-  const e = document.getElementById("develop-editor-game-id");
-  if (e) e.textContent = gameId != null ? String(gameId) : "—";
-
   const l = document.getElementById("develop-editor-settings-link");
   if (l) {
     l.href = gameId != null ? `/develop/game/${gameId}/settings` : "#";
@@ -272,6 +273,8 @@ export function applyShellRoute() {
     document.title = "Game settings — Pixelcade";
   } else if (onDev && route.kind === "editor") {
     setStubIds(route.gameId);
+    syncGameEditorGameId(route.gameId);
+    refreshGameEditorView(route.gameId);
     document.title = "Editor — Pixelcade";
   } else if (onDev && route.kind === "unknown") {
     document.title = "Developer — Pixelcade";

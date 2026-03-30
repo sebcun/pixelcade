@@ -35,7 +35,13 @@ async function handleResponse(res, data, options = {}) {
 }
 
 async function request(method, url, body, options = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
+  const headers = {};
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
   if (method !== "GET") {
     const t = csrfToken();
     if (t) {
@@ -43,13 +49,19 @@ async function request(method, url, body, options = {}) {
       headers["X-CSRF-Token"] = t;
     }
   }
+
   const init = {
     method,
     headers,
     credentials: "same-origin",
   };
+
   if (body !== undefined && method !== "GET") {
-    init.body = JSON.stringify(body);
+    if (isFormData) {
+      init.body = body;
+    } else {
+      init.body = JSON.stringify(body);
+    }
   }
   const res = await fetch(url, init);
   const data = await parseResponseBody(res);

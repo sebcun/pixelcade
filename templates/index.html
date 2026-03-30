@@ -1,716 +1,1259 @@
-{% extends "base.html" %}
-
-{% block content %}
+{% extends "base.html" %} {% block content %}
 <main class="app-shell">
-    <div id="view-home" class="auth-view">
-        <section id="home-showcase" class="showcase" aria-label="Welcome">
-            <h1 class="font-display">Pixelcade</h1>
-            <p class="showcase-lead">Play and build tiny games in your browser.</p>
-            <div class="showcase-actions">
-                <a class="btn btn--nav-primary" href="{{ url_for('auth.signup') }}">Sign up</a>
-                <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+  <div id="view-home" class="auth-view">
+    <section id="home-showcase" class="showcase" aria-label="Welcome">
+      <h1 class="font-display">Pixelcade</h1>
+      <p class="showcase-lead">Play and build tiny games in your browser.</p>
+      <div class="showcase-actions">
+        <a class="btn btn--nav-primary" href="{{ url_for('auth.signup') }}"
+          >Sign up</a
+        >
+        <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}"
+          >Log in</a
+        >
+      </div>
+    </section>
+  </div>
+
+  <div id="view-develop-home" class="develop-shell" hidden>
+    <div class="develop-layout">
+      <header class="develop-page-header">
+        <div class="develop-page-header__titles">
+          <p class="develop-kicker font-display">Create</p>
+          <h1 class="develop-page-title">Your experiences</h1>
+          <p class="develop-page-lead">
+            Build and publish games on Pixelcade - all in the browser.
+          </p>
+        </div>
+        <button type="button" class="btn btn--develop-new" id="btn-new-game">
+          New Game
+        </button>
+      </header>
+      <p
+        id="develop-home-error"
+        class="develop-banner develop-banner--error"
+        role="alert"
+        hidden
+      ></p>
+      <div
+        id="develop-games-grid"
+        class="develop-games-grid"
+        aria-live="polite"
+      ></div>
+    </div>
+  </div>
+
+  <div id="view-develop-settings" class="develop-shell" hidden>
+    <div class="develop-layout">
+      <header class="develop-page-header">
+        <div class="develop-page-header__titles">
+          <a href="/develop" class="develop-back-link" data-spa-nav
+            >← All experiences</a
+          >
+          <h1 class="develop-page-title">Experience Settings</h1>
+          <p class="develop-page-lead">
+            Update the title, description, and who can see your experience. Save before leaving if you changed anything.
+          </p>
+        </div>
+
+        <a
+          id="develop-settings-editor-link"
+          href="/develop"
+          class="btn btn--develop-new"
+          data-spa-nav
+          >Open editor</a
+        >
+      </header>
+
+      <p
+        id="develop-settings-load-error"
+        class="develop-banner develop-banner--error"
+        role="alert"
+        hidden
+      ></p>
+      <p
+        id="develop-settings-loading"
+        class="develop-settings-loading"
+        role="status"
+      >
+        Loading game…
+      </p>
+
+      <form
+        id="form-game-settings"
+        class="develop-form develop-settings-panel"
+        hidden
+      >
+        <p
+          id="develop-settings-form-error"
+          class="develop-banner develop-banner--error develop-banner--compact"
+          role="alert"
+          hidden
+        ></p>
+
+        <div class="field">
+          <label for="game-settings-title">Title</label>
+          <input
+            id="game-settings-title"
+            name="title"
+            type="text"
+            autocomplete="off"
+            maxlength="200"
+            placeholder="Untitled game"
+          />
+        </div>
+
+        <div class="field">
+          <label for="game-settings-description">Description</label>
+          <textarea
+            id="game-settings-description"
+            name="description"
+            rows="5"
+            maxlength="8000"
+            placeholder="What is this game about?"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="game-settings-status">Visibility</label>
+          <select
+            id="game-settings-status"
+            name="status"
+            aria-describedby="game-settings-status-hint"
+          >
+            <option value="private">Private — only you</option>
+            <option value="unlisted">Unlisted — anyone with the link</option>
+            <option value="public">Public — listed on Pixelcade</option>
+          </select>
+          <p id="game-settings-status-hint" class="develop-field-hint">
+            Unlisted and public require a title and description.
+          </p>
+        </div>
+
+        <div class="develop-settings-actions">
+          <button type="submit" class="btn btn--nav-primary">
+            Save changes
+          </button>
+          <button
+            type="button"
+            class="btn btn--nav-secondary"
+            id="btn-game-publish"
+          >
+            Publish
+          </button>
+        </div>
+      </form>
+
+      <section
+        id="develop-settings-danger"
+        class="develop-danger-zone develop-settings-panel"
+        hidden
+        aria-labelledby="develop-danger-heading"
+      >
+        <h2 id="develop-danger-heading" class="develop-danger-zone__title">
+          Danger zone
+        </h2>
+        <p class="develop-danger-zone__lead">
+          Permanently delete this game, including all scenes, scripts, sprites,
+          and stats. This cannot be undone.
+        </p>
+        <button
+          type="button"
+          class="btn develop-btn--danger"
+          id="btn-game-delete"
+        >
+          Delete game
+        </button>
+      </section>
+    </div>
+  </div>
+
+  <div id="view-develop-editor" class="develop-shell" hidden>
+    <div class="develop-layout">
+
+      <header class="develop-page-header">
+        <div class="develop-page-header__titles">
+          <a href="/develop" class="develop-back-link" id="develop-editor-settings-link" data-spa-nav
+            >← Experience Settings</a
+          >
+          <h1 class="develop-page-title">Experience Editor</h1>
+          <p class="develop-page-lead">
+            Update the title, description, and who can see your experience. Save before leaving if you changed anything.
+          </p>
+        </div>
+      </header>
+
+      <div class="sprite-editor-layout" id="sprite-editor-layout">
+        <aside class="sprite-sidebar">
+          <div class="sprite-sidebar__header">
+            <p class="develop-kicker font-display">Sprites</p>
+            <button
+              type="button"
+              class="btn btn--nav-primary"
+              id="sprite-editor-new-sprite"
+            >
+              New Sprite
+            </button>
+          </div>
+
+          <div
+            id="sprite-sidebar-list"
+            class="sprite-sidebar__list"
+            aria-live="polite"
+          >
+            <p class="sprite-sidebar__empty">Loading sprites…</p>
+          </div>
+        </aside>
+
+        <section
+          class="sprite-editor-panel"
+          id="sprite-editor-panel"
+          aria-label="Sprite editor"
+          hidden
+        >
+          <div class="sprite-editor-panel__top">
+            <div class="sprite-editor-sprite-meta">
+              <p class="develop-kicker font-display">Editing</p>
+              <h2
+                id="sprite-editor-sprite-name"
+                class="sprite-editor-sprite-name"
+              >
+                —
+              </h2>
             </div>
+
+            <div class="sprite-editor-panel__meta-actions">
+              <button
+                type="button"
+                class="btn btn--nav-secondary"
+                id="sprite-editor-rename-sprite"
+                disabled
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                class="btn develop-btn--danger"
+                id="sprite-editor-delete-sprite"
+                disabled
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <div class="sprite-editor-toolbar">
+            <div
+              class="sprite-tool-group"
+              role="group"
+              aria-label="Drawing tools"
+            >
+              <button
+                type="button"
+                class="sprite-tool-btn"
+                data-tool="pencil"
+                id="sprite-tool-pencil"
+                aria-pressed="true"
+              >
+                Pencil
+              </button>
+              <button
+                type="button"
+                class="sprite-tool-btn"
+                data-tool="eraser"
+                id="sprite-tool-eraser"
+                aria-pressed="false"
+              >
+                Eraser
+              </button>
+              <button
+                type="button"
+                class="sprite-tool-btn"
+                data-tool="fill"
+                id="sprite-tool-fill"
+                aria-pressed="false"
+              >
+                Fill
+              </button>
+              <button
+                type="button"
+                class="sprite-tool-btn"
+                data-tool="picker"
+                id="sprite-tool-picker"
+                aria-pressed="false"
+              >
+                Pick
+              </button>
+            </div>
+
+            <div
+              class="sprite-editor-undo-group"
+              role="group"
+              aria-label="History"
+            >
+              <button
+                type="button"
+                class="btn btn--nav-secondary sprite-icon-btn"
+                id="sprite-editor-undo"
+                disabled
+                aria-label="Undo"
+              >
+                <i data-lucide="undo-2" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="btn btn--nav-secondary sprite-icon-btn"
+                id="sprite-editor-redo"
+                disabled
+                aria-label="Redo"
+              >
+                <i data-lucide="redo-2" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="sprite-editor-body">
+            <div class="sprite-canvas-area">
+              <div
+                class="sprite-canvas-wrap"
+                role="application"
+                aria-label="32 by 32 pixel canvas"
+              >
+                <canvas
+                  id="sprite-editor-canvas"
+                  width="32"
+                  height="32"
+                ></canvas>
+                <div class="sprite-canvas-grid" aria-hidden="true"></div>
+              </div>
+              <p class="sprite-editor-help">
+                Drag to draw. Fill replaces a connected region. Pick samples a
+                pixel colour.
+              </p>
+            </div>
+
+            <div class="sprite-editor-controls">
+              <div class="sprite-color-controls">
+                <p class="develop-kicker font-display">Colour palette</p>
+                <div
+                  id="sprite-editor-palette"
+                  class="sprite-palette"
+                  aria-label="16 colour preset palette"
+                ></div>
+
+                <div class="sprite-color-row">
+                  <label
+                    class="sprite-color-row__label"
+                    for="sprite-editor-hex-input"
+                    >Hex</label
+                  >
+                  <input
+                    id="sprite-editor-hex-input"
+                    class="sprite-hex-input"
+                    type="text"
+                    inputmode="text"
+                    value="#000000"
+                    maxlength="7"
+                    aria-label="Hex colour input"
+                  />
+                </div>
+
+                <div class="sprite-opacity-row">
+                  <label
+                    class="sprite-color-row__label"
+                    for="sprite-editor-opacity"
+                    >Opacity</label
+                  >
+                  <input
+                    id="sprite-editor-opacity"
+                    class="sprite-opacity-range"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="1"
+                    aria-label="Opacity slider"
+                  />
+                  <span
+                    id="sprite-editor-opacity-value"
+                    class="sprite-opacity-value"
+                    >1</span
+                  >
+                </div>
+
+                <div class="sprite-color-preview-row">
+                  <span class="sprite-color-preview-label">Preview</span>
+                  <span
+                    id="sprite-editor-color-preview"
+                    class="sprite-color-preview"
+                    aria-hidden="true"
+                  ></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sprite-editor-footer">
+            <button
+              type="button"
+              class="btn btn--nav-primary"
+              id="sprite-editor-save-draft"
+              disabled
+            >
+              Save
+            </button>
+          </div>
         </section>
+      </div>
     </div>
+  </div>
 
-    <div id="view-develop-home" class="develop-shell" hidden>
-        <div class="develop-layout">
-            <header class="develop-page-header">
-                <div class="develop-page-header__titles">
-                    <p class="develop-kicker font-display">Create</p>
-                    <h1 class="develop-page-title">Your experiences</h1>
-                    <p class="develop-page-lead">Build and publish games on Pixelcade - all in the browser.</p>
-                </div>
-                <button type="button" class="btn btn--develop-new" id="btn-new-game">New Game</button>
-            </header>
-            <p id="develop-home-error" class="develop-banner develop-banner--error" role="alert" hidden></p>
-            <div id="develop-games-grid" class="develop-games-grid" aria-live="polite"></div>
-        </div>
+  <div id="view-develop-unknown" class="develop-shell" hidden>
+    <div class="develop-layout">
+      <h1 class="develop-page-title develop-page-title--sub">Page not found</h1>
+      <p class="develop-page-lead">That developer URL does not exist.</p>
+      <a href="/develop" class="btn btn--nav-primary" data-spa-nav
+        >Back to Create</a
+      >
     </div>
+  </div>
 
-    <div id="view-develop-settings" class="develop-shell" hidden>
-        <div class="develop-layout">
-            <header class="develop-settings-top">
-                <div class="develop-settings-top__main">
-                    <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
-                    <h1 id="develop-settings-heading" class="develop-page-title develop-page-title--sub">Game settings</h1>
-                    <p class="develop-page-lead develop-page-lead--wide">Set the title, description, and who can see your game. Save before leaving if you changed anything.</p>
-                </div>
-                <a id="develop-settings-editor-link" href="/develop" class="btn btn--nav-secondary develop-settings-editor-btn" data-spa-nav>Open editor</a>
-            </header>
-
-            <p id="develop-settings-load-error" class="develop-banner develop-banner--error" role="alert" hidden></p>
-            <p id="develop-settings-loading" class="develop-settings-loading" role="status">Loading game…</p>
-
-            <form id="form-game-settings" class="develop-form develop-settings-panel" hidden>
-                <p id="develop-settings-form-error" class="develop-banner develop-banner--error develop-banner--compact" role="alert" hidden></p>
-
+  <div id="auth-modal-root" class="auth-modal-root" aria-hidden="true">
+    <div
+      class="auth-modal__backdrop"
+      data-auth-dismiss
+      aria-hidden="true"
+    ></div>
+    <div
+      id="auth-modal-dialog"
+      class="auth-modal__dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-modal-login-title"
+    >
+      <div class="auth-modal__panels">
+        <div id="view-login" class="auth-modal-panel" aria-hidden="true">
+          <div class="auth-shell auth-shell--modal">
+            <div class="auth-card auth-card--modal">
+              <button
+                type="button"
+                class="auth-modal__close"
+                data-auth-dismiss
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+              <h1
+                id="auth-modal-login-title"
+                class="auth-card__title font-display"
+              >
+                Log in
+              </h1>
+              <p
+                class="auth-card__lead"
+                data-form-error="login"
+                role="alert"
+                hidden
+              ></p>
+              <form id="form-login" class="auth-form">
                 <div class="field">
-                    <label for="game-settings-title">Title</label>
-                    <input id="game-settings-title" name="title" type="text" autocomplete="off" maxlength="200" placeholder="Untitled game">
+                  <label for="login-email">Email</label>
+                  <input
+                    id="login-email"
+                    name="email"
+                    type="text"
+                    inputmode="email"
+                    autocomplete="email"
+                    required
+                  />
+                  <p
+                    class="field-live-hint"
+                    data-live-hint="login-email"
+                    aria-live="polite"
+                  ></p>
+                  <p
+                    class="field-error"
+                    data-field-error="email"
+                    role="alert"
+                  ></p>
                 </div>
-
                 <div class="field">
-                    <label for="game-settings-description">Description</label>
-                    <textarea id="game-settings-description" name="description" rows="5" maxlength="8000" placeholder="What is this game about?"></textarea>
+                  <label for="login-password">Password</label>
+                  <div class="field-input-row">
+                    <input
+                      id="login-password"
+                      name="password"
+                      type="password"
+                      autocomplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      class="btn-password-toggle"
+                      data-password-toggle
+                      aria-controls="login-password"
+                      aria-pressed="false"
+                      aria-label="Show password"
+                    >
+                      Show
+                    </button>
+                  </div>
+                  <p
+                    class="field-error"
+                    data-field-error="password"
+                    role="alert"
+                  ></p>
                 </div>
+                <button type="submit" class="btn btn--block btn--auth-submit">
+                  Log in
+                </button>
+              </form>
+              <p class="auth-switch">
+                No account?
+                <a href="{{ url_for('auth.signup') }}">Sign up</a>
+              </p>
+            </div>
+          </div>
+        </div>
 
+        <div id="view-signup" class="auth-modal-panel" aria-hidden="true">
+          <div class="auth-shell auth-shell--modal">
+            <div class="auth-card auth-card--modal">
+              <button
+                type="button"
+                class="auth-modal__close"
+                data-auth-dismiss
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+              <h1
+                id="auth-modal-signup-title"
+                class="auth-card__title font-display"
+              >
+                Sign up
+              </h1>
+              <p
+                class="auth-card__lead"
+                data-form-error="signup"
+                role="alert"
+                hidden
+              ></p>
+              <form id="form-signup" class="auth-form">
                 <div class="field">
-                    <label for="game-settings-status">Visibility</label>
-                    <select id="game-settings-status" name="status" aria-describedby="game-settings-status-hint">
-                        <option value="private">Private — only you</option>
-                        <option value="unlisted">Unlisted — anyone with the link</option>
-                        <option value="public">Public — listed on Pixelcade</option>
-                    </select>
-                    <p id="game-settings-status-hint" class="develop-field-hint">Unlisted and public require a title and description.</p>
+                  <label for="signup-username">Username</label>
+                  <input
+                    id="signup-username"
+                    name="username"
+                    type="text"
+                    autocomplete="username"
+                    required
+                    minlength="3"
+                    maxlength="20"
+                  />
+                  <p
+                    class="field-live-hint"
+                    data-live-hint="username"
+                    aria-live="polite"
+                  ></p>
+                  <p
+                    class="field-error"
+                    data-field-error="username"
+                    role="alert"
+                  ></p>
                 </div>
-
-                <div class="develop-settings-actions">
-                    <button type="submit" class="btn btn--nav-primary">Save changes</button>
-                    <button type="button" class="btn btn--nav-secondary" id="btn-game-publish">Publish</button>
+                <div class="field">
+                  <label for="signup-email">Email</label>
+                  <input
+                    id="signup-email"
+                    name="email"
+                    type="text"
+                    inputmode="email"
+                    autocomplete="email"
+                    required
+                  />
+                  <p
+                    class="field-live-hint"
+                    data-live-hint="signup-email"
+                    aria-live="polite"
+                  ></p>
+                  <p
+                    class="field-error"
+                    data-field-error="email"
+                    role="alert"
+                  ></p>
                 </div>
-            </form>
-
-            <section id="develop-settings-danger" class="develop-danger-zone develop-settings-panel" hidden aria-labelledby="develop-danger-heading">
-                <h2 id="develop-danger-heading" class="develop-danger-zone__title">Danger zone</h2>
-                <p class="develop-danger-zone__lead">Permanently delete this game, including all scenes, scripts, sprites, and stats. This cannot be undone.</p>
-                <button type="button" class="btn develop-btn--danger" id="btn-game-delete">Delete game</button>
-            </section>
-        </div>
-    </div>
-
-    <div id="view-develop-editor" class="develop-shell" hidden>
-        <div class="develop-layout">
-            <a href="/develop" class="develop-back-link" data-spa-nav id="develop-editor-settings-link">← Experience Settings</a>
-            <h1 class="develop-page-title develop-page-title--sub">Editor</h1>
-            <p class="develop-page-lead">Description.</p>
-            <p class="develop-stub">Experience ID: <strong id="develop-editor-game-id">—</strong></p>
-            <p class="develop-stub develop-stub--muted">Game</p>
-        </div>
-    </div>
-
-    <div id="view-develop-unknown" class="develop-shell" hidden>
-        <div class="develop-layout">
-            <h1 class="develop-page-title develop-page-title--sub">Page not found</h1>
-            <p class="develop-page-lead">That developer URL does not exist.</p>
-            <a href="/develop" class="btn btn--nav-primary" data-spa-nav>Back to Create</a>
-        </div>
-    </div>
-
-    <div id="auth-modal-root" class="auth-modal-root" aria-hidden="true">
-        <div class="auth-modal__backdrop" data-auth-dismiss aria-hidden="true"></div>
-        <div id="auth-modal-dialog" class="auth-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-login-title">
-            <div class="auth-modal__panels">
-            <div id="view-login" class="auth-modal-panel" aria-hidden="true">
-                <div class="auth-shell auth-shell--modal">
-                    <div class="auth-card auth-card--modal">
-                        <button type="button" class="auth-modal__close" data-auth-dismiss aria-label="Close dialog">&times;</button>
-                        <h1 id="auth-modal-login-title" class="auth-card__title font-display">Log in</h1>
-                        <p class="auth-card__lead" data-form-error="login" role="alert" hidden></p>
-                        <form id="form-login" class="auth-form">
-                            <div class="field">
-                                <label for="login-email">Email</label>
-                                <input id="login-email" name="email" type="text" inputmode="email" autocomplete="email" required>
-                                <p class="field-live-hint" data-live-hint="login-email" aria-live="polite"></p>
-                                <p class="field-error" data-field-error="email" role="alert"></p>
-                            </div>
-                            <div class="field">
-                                <label for="login-password">Password</label>
-                                <div class="field-input-row">
-                                    <input id="login-password" name="password" type="password" autocomplete="current-password" required>
-                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="login-password" aria-pressed="false" aria-label="Show password">Show</button>
-                                </div>
-                                <p class="field-error" data-field-error="password" role="alert"></p>
-                            </div>
-                            <button type="submit" class="btn btn--block btn--auth-submit">Log in</button>
-                        </form>
-                        <p class="auth-switch">
-                            No account?
-                            <a href="{{ url_for('auth.signup') }}">Sign up</a>
-                        </p>
-                    </div>
+                <div class="field">
+                  <label for="signup-password">Password</label>
+                  <div class="field-input-row">
+                    <input
+                      id="signup-password"
+                      name="password"
+                      type="password"
+                      autocomplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      class="btn-password-toggle"
+                      data-password-toggle
+                      aria-controls="signup-password"
+                      aria-pressed="false"
+                      aria-label="Show password"
+                    >
+                      Show
+                    </button>
+                  </div>
+                  <ul
+                    class="password-rules"
+                    id="signup-password-rules"
+                    aria-live="polite"
+                  >
+                    <li data-rule="len">At least 8 characters</li>
+                    <li data-rule="letter">At least one letter</li>
+                    <li data-rule="number">At least one number</li>
+                  </ul>
+                  <p
+                    class="field-error"
+                    data-field-error="password"
+                    role="alert"
+                  ></p>
                 </div>
+                <div class="field">
+                  <label for="signup-confirm-password">Confirm password</label>
+                  <div class="field-input-row">
+                    <input
+                      id="signup-confirm-password"
+                      name="confirm_password"
+                      type="password"
+                      autocomplete="new-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      class="btn-password-toggle"
+                      data-password-toggle
+                      aria-controls="signup-confirm-password"
+                      aria-pressed="false"
+                      aria-label="Show password"
+                    >
+                      Show
+                    </button>
+                  </div>
+                  <p
+                    class="field-live-hint"
+                    data-live-hint="confirm-password"
+                    aria-live="polite"
+                  ></p>
+                  <p
+                    class="field-error"
+                    data-field-error="confirm_password"
+                    role="alert"
+                  ></p>
+                </div>
+                <div class="field field--check">
+                  <input
+                    id="signup-accept-tos"
+                    name="accept_tos"
+                    type="checkbox"
+                    required
+                  />
+                  <label for="signup-accept-tos"
+                    >I accept the
+                    <a href="#terms" class="auth-inline-link"
+                      >Terms of Service</a
+                    ></label
+                  >
+                  <p
+                    class="field-error field-error--check"
+                    data-field-error="accept_tos"
+                    role="alert"
+                  ></p>
+                </div>
+                <div class="field field--check">
+                  <input
+                    id="signup-accept-privacy"
+                    name="accept_privacy"
+                    type="checkbox"
+                    required
+                  />
+                  <label for="signup-accept-privacy"
+                    >I accept the
+                    <a href="#privacy" class="auth-inline-link"
+                      >Privacy Policy</a
+                    ></label
+                  >
+                  <p
+                    class="field-error field-error--check"
+                    data-field-error="accept_privacy"
+                    role="alert"
+                  ></p>
+                </div>
+                <button type="submit" class="btn btn--block btn--auth-submit">
+                  Create account
+                </button>
+              </form>
+              <p class="auth-switch">
+                Already have an account?
+                <a href="{{ url_for('auth.login') }}">Log in</a>
+              </p>
             </div>
-
-            <div id="view-signup" class="auth-modal-panel" aria-hidden="true">
-                <div class="auth-shell auth-shell--modal">
-                    <div class="auth-card auth-card--modal">
-                        <button type="button" class="auth-modal__close" data-auth-dismiss aria-label="Close dialog">&times;</button>
-                        <h1 id="auth-modal-signup-title" class="auth-card__title font-display">Sign up</h1>
-                        <p class="auth-card__lead" data-form-error="signup" role="alert" hidden></p>
-                        <form id="form-signup" class="auth-form">
-                            <div class="field">
-                                <label for="signup-username">Username</label>
-                                <input id="signup-username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="20">
-                                <p class="field-live-hint" data-live-hint="username" aria-live="polite"></p>
-                                <p class="field-error" data-field-error="username" role="alert"></p>
-                            </div>
-                            <div class="field">
-                                <label for="signup-email">Email</label>
-                                <input id="signup-email" name="email" type="text" inputmode="email" autocomplete="email" required>
-                                <p class="field-live-hint" data-live-hint="signup-email" aria-live="polite"></p>
-                                <p class="field-error" data-field-error="email" role="alert"></p>
-                            </div>
-                            <div class="field">
-                                <label for="signup-password">Password</label>
-                                <div class="field-input-row">
-                                    <input id="signup-password" name="password" type="password" autocomplete="new-password" required>
-                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="signup-password" aria-pressed="false" aria-label="Show password">Show</button>
-                                </div>
-                                <ul class="password-rules" id="signup-password-rules" aria-live="polite">
-                                    <li data-rule="len">At least 8 characters</li>
-                                    <li data-rule="letter">At least one letter</li>
-                                    <li data-rule="number">At least one number</li>
-                                </ul>
-                                <p class="field-error" data-field-error="password" role="alert"></p>
-                            </div>
-                            <div class="field">
-                                <label for="signup-confirm-password">Confirm password</label>
-                                <div class="field-input-row">
-                                    <input id="signup-confirm-password" name="confirm_password" type="password" autocomplete="new-password" required>
-                                    <button type="button" class="btn-password-toggle" data-password-toggle aria-controls="signup-confirm-password" aria-pressed="false" aria-label="Show password">Show</button>
-                                </div>
-                                <p class="field-live-hint" data-live-hint="confirm-password" aria-live="polite"></p>
-                                <p class="field-error" data-field-error="confirm_password" role="alert"></p>
-                            </div>
-                            <div class="field field--check">
-                                <input id="signup-accept-tos" name="accept_tos" type="checkbox" required>
-                                <label for="signup-accept-tos">I accept the <a href="#terms" class="auth-inline-link">Terms of Service</a></label>
-                                <p class="field-error field-error--check" data-field-error="accept_tos" role="alert"></p>
-                            </div>
-                            <div class="field field--check">
-                                <input id="signup-accept-privacy" name="accept_privacy" type="checkbox" required>
-                                <label for="signup-accept-privacy">I accept the <a href="#privacy" class="auth-inline-link">Privacy Policy</a></label>
-                                <p class="field-error field-error--check" data-field-error="accept_privacy" role="alert"></p>
-                            </div>
-                            <button type="submit" class="btn btn--block btn--auth-submit">Create account</button>
-                        </form>
-                        <p class="auth-switch">
-                            Already have an account?
-                            <a href="{{ url_for('auth.login') }}">Log in</a>
-                        </p>
-                    </div>
-                </div>
-            </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 </main>
-{% endblock %}
-
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script type="module">
-    import { api } from "{{ url_for('static', filename='js/api.js') }}";
-    import {
-        applyShellRoute,
-        initShellRouter,
-        isDevelopSection,
-    } from "{{ url_for('static', filename='js/app-shell.js') }}";
-    import {
-        filterUsernameValue,
-        usernameLiveState,
-        stripEmailSpaces,
-        emailLiveState,
-        passwordMeetsRules,
-        passwordRuleState,
-        bindPasswordToggles,
-        applyPasswordRulesUi,
-    } from "{{ url_for('static', filename='js/auth-forms.js') }}";
+  import { api } from "{{ url_for('static', filename='js/api.js') }}";
+  import {
+    applyShellRoute,
+    initShellRouter,
+    isDevelopSection,
+  } from "{{ url_for('static', filename='js/app-shell.js') }}";
+  import {
+    filterUsernameValue,
+    usernameLiveState,
+    stripEmailSpaces,
+    emailLiveState,
+    passwordMeetsRules,
+    passwordRuleState,
+    bindPasswordToggles,
+    applyPasswordRulesUi,
+  } from "{{ url_for('static', filename='js/auth-forms.js') }}";
 
-    const PATH_LOGIN = "/auth/login";
-    const PATH_SIGNUP = "/auth/signup";
+  const PATH_LOGIN = "/auth/login";
+  const PATH_SIGNUP = "/auth/signup";
 
-    function normalizePath(pathname) {
-        const trimmed = pathname.replace(/\/+$/, "");
-        return trimmed === "" ? "/" : trimmed;
+  function normalizePath(pathname) {
+    const trimmed = pathname.replace(/\/+$/, "");
+    return trimmed === "" ? "/" : trimmed;
+  }
+
+  function authPanelFromPath(path) {
+    if (path === PATH_LOGIN) return "login";
+    if (path === PATH_SIGNUP) return "signup";
+    return null;
+  }
+
+  function authPanelFromHref(href) {
+    if (!href || href.startsWith("#")) return null;
+    try {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      return authPanelFromPath(normalizePath(url.pathname));
+    } catch {
+      return null;
     }
+  }
 
-    function authPanelFromPath(path) {
-        if (path === PATH_LOGIN) return "login";
-        if (path === PATH_SIGNUP) return "signup";
-        return null;
+  let prevAuthPanel = null;
+
+  function isUserLoggedIn() {
+    const u = window.currentUser;
+    return Boolean(u && u.id != null && u.username);
+  }
+
+  function getAuthPanel() {
+    const path = normalizePath(window.location.pathname);
+    if (path === PATH_LOGIN || path === PATH_SIGNUP) {
+      return authPanelFromPath(path);
     }
-
-    function authPanelFromHref(href) {
-        if (!href || href.startsWith("#")) return null;
-        try {
-            const url = new URL(href, window.location.origin);
-            if (url.origin !== window.location.origin) return null;
-            return authPanelFromPath(normalizePath(url.pathname));
-        } catch {
-            return null;
-        }
+    if (path === "/") {
+      const s = history.state && history.state.authModal;
+      if (s === "login" || s === "signup") {
+        return s;
+      }
     }
+    return null;
+  }
 
-    let prevAuthPanel = null;
-
-    function isUserLoggedIn() {
-        const u = window.currentUser;
-        return Boolean(u && u.id != null && u.username);
-    }
-
-    function getAuthPanel() {
-        const path = normalizePath(window.location.pathname);
-        if (path === PATH_LOGIN || path === PATH_SIGNUP) {
-            return authPanelFromPath(path);
-        }
-        if (path === "/") {
-            const s = history.state && history.state.authModal;
-            if (s === "login" || s === "signup") {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    function canonicalizeAuthUrl() {
-        const path = normalizePath(window.location.pathname);
-        const panel = authPanelFromPath(path);
-        if (panel) {
-            if (isUserLoggedIn()) {
-                history.replaceState({}, "", "/");
-            } else {
-                history.replaceState({ authModal: panel }, "", "/");
-            }
-        }
-    }
-
-    function applyRoute() {
-        const path = normalizePath(window.location.pathname);
-        const home = document.getElementById("view-home");
-        const modalRoot = document.getElementById("auth-modal-root");
-        const dialog = document.getElementById("auth-modal-dialog");
-        const login = document.getElementById("view-login");
-        const signup = document.getElementById("view-signup");
-        if (!home || !modalRoot || !login || !signup) return;
-
-        if (isUserLoggedIn() && getAuthPanel()) {
-            history.replaceState({}, "", "/");
-        }
-        const panel = isUserLoggedIn() ? null : getAuthPanel();
-        const authOpen = panel === "login" || panel === "signup";
-        const isLogin = panel === "login";
-        const isSignup = panel === "signup";
-
-        home.hidden = isDevelopSection();
-
-        if (authOpen) {
-            modalRoot.classList.add("is-open");
-            modalRoot.setAttribute("aria-hidden", "false");
-            login.classList.toggle("auth-modal-panel--active", isLogin);
-            signup.classList.toggle("auth-modal-panel--active", isSignup);
-            login.setAttribute("aria-hidden", isLogin ? "false" : "true");
-            signup.setAttribute("aria-hidden", isSignup ? "false" : "true");
-            if (dialog) {
-                dialog.setAttribute(
-                    "aria-labelledby",
-                    isLogin ? "auth-modal-login-title" : "auth-modal-signup-title"
-                );
-            }
-            document.body.classList.add("auth-modal-is-open");
-            if (panel !== prevAuthPanel) {
-                const focusSel = isLogin ? "#login-email" : "#signup-username";
-                queueMicrotask(() => document.querySelector(focusSel)?.focus());
-            }
-        } else {
-            modalRoot.classList.remove("is-open");
-            modalRoot.setAttribute("aria-hidden", "true");
-            login.classList.remove("auth-modal-panel--active");
-            signup.classList.remove("auth-modal-panel--active");
-            login.setAttribute("aria-hidden", "true");
-            signup.setAttribute("aria-hidden", "true");
-            document.body.classList.remove("auth-modal-is-open");
-        }
-
-        prevAuthPanel = panel;
-
-        if (!isDevelopSection()) {
-            document.title =
-                isLogin ? "Log in — Pixelcade" : isSignup ? "Sign up — Pixelcade" : "Pixelcade";
-        }
-    }
-
-    function fullRoute() {
-        applyShellRoute();
-        applyRoute();
-    }
-
-    function navigateAuth(panel) {
-        if (isUserLoggedIn()) {
-            history.replaceState({}, "", "/");
-            fullRoute();
-            return;
-        }
-        history.pushState({ authModal: panel }, "", "/");
-        fullRoute();
-    }
-
-    function dismissAuthModal() {
-        if (!getAuthPanel()) return;
+  function canonicalizeAuthUrl() {
+    const path = normalizePath(window.location.pathname);
+    const panel = authPanelFromPath(path);
+    if (panel) {
+      if (isUserLoggedIn()) {
         history.replaceState({}, "", "/");
-        fullRoute();
+      } else {
+        history.replaceState({ authModal: panel }, "", "/");
+      }
+    }
+  }
+
+  function applyRoute() {
+    const path = normalizePath(window.location.pathname);
+    const home = document.getElementById("view-home");
+    const modalRoot = document.getElementById("auth-modal-root");
+    const dialog = document.getElementById("auth-modal-dialog");
+    const login = document.getElementById("view-login");
+    const signup = document.getElementById("view-signup");
+    if (!home || !modalRoot || !login || !signup) return;
+
+    if (isUserLoggedIn() && getAuthPanel()) {
+      history.replaceState({}, "", "/");
+    }
+    const panel = isUserLoggedIn() ? null : getAuthPanel();
+    const authOpen = panel === "login" || panel === "signup";
+    const isLogin = panel === "login";
+    const isSignup = panel === "signup";
+
+    home.hidden = isDevelopSection();
+
+    if (authOpen) {
+      modalRoot.classList.add("is-open");
+      modalRoot.setAttribute("aria-hidden", "false");
+      login.classList.toggle("auth-modal-panel--active", isLogin);
+      signup.classList.toggle("auth-modal-panel--active", isSignup);
+      login.setAttribute("aria-hidden", isLogin ? "false" : "true");
+      signup.setAttribute("aria-hidden", isSignup ? "false" : "true");
+      if (dialog) {
+        dialog.setAttribute(
+          "aria-labelledby",
+          isLogin ? "auth-modal-login-title" : "auth-modal-signup-title",
+        );
+      }
+      document.body.classList.add("auth-modal-is-open");
+      if (panel !== prevAuthPanel) {
+        const focusSel = isLogin ? "#login-email" : "#signup-username";
+        queueMicrotask(() => document.querySelector(focusSel)?.focus());
+      }
+    } else {
+      modalRoot.classList.remove("is-open");
+      modalRoot.setAttribute("aria-hidden", "true");
+      login.classList.remove("auth-modal-panel--active");
+      signup.classList.remove("auth-modal-panel--active");
+      login.setAttribute("aria-hidden", "true");
+      signup.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("auth-modal-is-open");
     }
 
-    async function finishAuthSuccess() {
-        history.replaceState({}, "", "/");
-        fullRoute();
-        document.getElementById("form-login")?.reset();
-        document.getElementById("form-signup")?.reset();
-        document.querySelectorAll(".auth-form [data-live-hint]").forEach((el) => {
-            el.textContent = "";
-            el.classList.remove("field-live-hint--invalid", "field-live-hint--valid");
-        });
-        document.querySelectorAll(".auth-form .input--invalid").forEach((el) => {
-            el.classList.remove("input--invalid");
-        });
-        const rulesEl = document.getElementById("signup-password-rules");
-        if (rulesEl) {
-            applyPasswordRulesUi(rulesEl, "");
-        }
-        if (typeof window.pixelcadeSyncCurrentUser === "function") {
-            await window.pixelcadeSyncCurrentUser();
-        }
+    prevAuthPanel = panel;
+
+    if (!isDevelopSection()) {
+      document.title = isLogin
+        ? "Log in — Pixelcade"
+        : isSignup
+          ? "Sign up — Pixelcade"
+          : "Pixelcade";
     }
+  }
 
-    document.addEventListener("click", (e) => {
-        if (e.defaultPrevented) return;
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        const a = e.target.closest("a");
-        if (!a) return;
-        const panel = authPanelFromHref(a.getAttribute("href"));
-        if (!panel) return;
-        e.preventDefault();
-        navigateAuth(panel);
-    });
+  function fullRoute() {
+    applyShellRoute();
+    applyRoute();
+  }
 
-    document.addEventListener("keydown", (e) => {
-        if (e.key !== "Escape") return;
-        if (getAuthPanel()) {
-            e.preventDefault();
-            dismissAuthModal();
-        }
-    });
-
-    document.querySelectorAll("[data-auth-dismiss]").forEach((el) => {
-        el.addEventListener("click", (e) => {
-            e.preventDefault();
-            dismissAuthModal();
-        });
-    });
-
-    initShellRouter(fullRoute);
-
-    function clearAuthErrors(form) {
-        const scope = form.closest(".auth-card") || form;
-        scope.querySelectorAll("[data-field-error]").forEach((el) => {
-            el.textContent = "";
-        });
-        scope.querySelectorAll("[data-form-error]").forEach((el) => {
-            el.textContent = "";
-            el.hidden = true;
-        });
+  function navigateAuth(panel) {
+    if (isUserLoggedIn()) {
+      history.replaceState({}, "", "/");
+      fullRoute();
+      return;
     }
-
-    function showFormError(form, message) {
-        const scope = form.closest(".auth-card") || form;
-        const el = scope.querySelector("[data-form-error]");
-        if (el) {
-            el.textContent = message;
-            el.hidden = false;
-        }
-    }
-
-    function applyApiErrors(form, data) {
-        const msg = data?.error != null && String(data.error) !== "" ? String(data.error) : "Something went wrong";
-        const field = data?.field;
-        if (field && typeof field === "string") {
-            const fieldEl = form.querySelector(`[data-field-error="${field}"]`);
-            if (fieldEl) {
-                fieldEl.textContent = msg;
-                return;
-            }
-        }
-        showFormError(form, msg);
-    }
-
-    function setSubmitLoading(button, loading, loadingLabel, idleLabel) {
-        if (!button) return;
-        if (loading) {
-            button.disabled = true;
-            button.setAttribute("aria-busy", "true");
-            button.dataset.idleLabel = idleLabel;
-            button.textContent = loadingLabel;
-        } else {
-            button.disabled = false;
-            button.removeAttribute("aria-busy");
-            button.textContent = button.dataset.idleLabel || idleLabel;
-        }
-    }
-
-    function setLiveHint(form, key, text, opts = {}) {
-        const invalid = opts.invalid === true;
-        const valid = opts.valid === true;
-        const el = form.querySelector(`[data-live-hint="${key}"]`);
-        if (!el) return;
-        el.textContent = text;
-        el.classList.toggle("field-live-hint--invalid", Boolean(invalid && text));
-        el.classList.toggle("field-live-hint--valid", Boolean(valid && text));
-    }
-
-    function setInputInvalid(input, invalid) {
-        if (!input) return;
-        input.classList.toggle("input--invalid", Boolean(invalid));
-    }
-
-    function setupLoginLive() {
-        const form = document.getElementById("form-login");
-        if (!form) return;
-        const emailInput = form.querySelector("#login-email");
-        const passInput = form.querySelector("#login-password");
-
-        emailInput?.addEventListener("input", () => {
-            const cleaned = stripEmailSpaces(emailInput.value);
-            if (cleaned !== emailInput.value) emailInput.value = cleaned;
-            form.querySelector('[data-field-error="email"]').textContent = "";
-            const st = emailLiveState(cleaned);
-            setLiveHint(form, "login-email", st.hint, { invalid: st.ok === false });
-            setInputInvalid(emailInput, st.ok === false);
-        });
-
-        passInput?.addEventListener("input", () => {
-            form.querySelector('[data-field-error="password"]').textContent = "";
-        });
-
-        bindPasswordToggles(form);
-    }
-
-    function setupSignupLive() {
-        const form = document.getElementById("form-signup");
-        if (!form) return;
-        const userInput = form.querySelector("#signup-username");
-        const emailInput = form.querySelector("#signup-email");
-        const passInput = form.querySelector("#signup-password");
-        const confirmInput = form.querySelector("#signup-confirm-password");
-        const rulesEl = document.getElementById("signup-password-rules");
-
-        userInput?.addEventListener("input", () => {
-            const next = filterUsernameValue(userInput.value);
-            if (next !== userInput.value) userInput.value = next;
-            form.querySelector('[data-field-error="username"]').textContent = "";
-            const st = usernameLiveState(next);
-            setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
-            setInputInvalid(userInput, st.ok === false);
-        });
-
-        emailInput?.addEventListener("input", () => {
-            const cleaned = stripEmailSpaces(emailInput.value);
-            if (cleaned !== emailInput.value) emailInput.value = cleaned;
-            form.querySelector('[data-field-error="email"]').textContent = "";
-            const st = emailLiveState(cleaned);
-            setLiveHint(form, "signup-email", st.hint, { invalid: st.ok === false });
-            setInputInvalid(emailInput, st.ok === false);
-        });
-
-        function refreshConfirm() {
-            const pw = passInput?.value ?? "";
-            const cf = confirmInput?.value ?? "";
-            form.querySelector('[data-field-error="confirm_password"]').textContent = "";
-            let hint = "";
-            let invalid = false;
-            let valid = false;
-            if (cf.length === 0) {
-                hint = "";
-            } else if (pw !== cf) {
-                hint = "Passwords do not match.";
-                invalid = true;
-            } else if (passwordMeetsRules(pw)) {
-                hint = "Passwords match.";
-                valid = true;
-            }
-            setLiveHint(form, "confirm-password", hint, { invalid, valid });
-            setInputInvalid(confirmInput, invalid);
-        }
-
-        passInput?.addEventListener("input", () => {
-            const pw = passInput.value;
-            form.querySelector('[data-field-error="password"]').textContent = "";
-            applyPasswordRulesUi(rulesEl, pw);
-            const ok = passwordMeetsRules(pw);
-            setInputInvalid(passInput, pw.length > 0 && !ok);
-            refreshConfirm();
-        });
-
-        confirmInput?.addEventListener("input", refreshConfirm);
-
-        bindPasswordToggles(form);
-
-        if (passInput && rulesEl) {
-            applyPasswordRulesUi(rulesEl, passInput.value);
-        }
-
-        if (userInput) {
-            const st = usernameLiveState(userInput.value);
-            setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
-        }
-    }
-
-    function signupClientValid(form) {
-        const userInput = form.querySelector("#signup-username");
-        const emailInput = form.querySelector("#signup-email");
-        const passInput = form.querySelector("#signup-password");
-        const confirmInput = form.querySelector("#signup-confirm-password");
-        const u = userInput?.value ?? "";
-        const em = emailInput?.value ?? "";
-        const pw = passInput?.value ?? "";
-        const cf = confirmInput?.value ?? "";
-
-        let ok = true;
-        const uSt = usernameLiveState(u);
-        if (uSt.ok !== true) {
-            setLiveHint(form, "username", uSt.hint || "Username is required.", { invalid: true });
-            setInputInvalid(userInput, true);
-            ok = false;
-        }
-        const eSt = emailLiveState(em);
-        if (eSt.ok !== true) {
-            setLiveHint(form, "signup-email", eSt.ok === false ? eSt.hint : "Email is required.", {
-                invalid: true,
-            });
-            setInputInvalid(emailInput, true);
-            ok = false;
-        }
-        if (!passwordMeetsRules(pw)) {
-            let msg = "Password must meet all requirements below.";
-            if (pw.length === 0) msg = "Password is required.";
-            form.querySelector('[data-field-error="password"]').textContent = msg;
-            setInputInvalid(passInput, true);
-            ok = false;
-        }
-        if (cf.length === 0) {
-            setLiveHint(form, "confirm-password", "Confirm your password.", { invalid: true });
-            setInputInvalid(confirmInput, true);
-            ok = false;
-        } else if (pw !== cf) {
-            setLiveHint(form, "confirm-password", "Passwords do not match.", { invalid: true });
-            setInputInvalid(confirmInput, true);
-            ok = false;
-        } else if (passwordMeetsRules(pw)) {
-            setLiveHint(form, "confirm-password", "Passwords match.", { valid: true });
-            setInputInvalid(confirmInput, false);
-        } else {
-            setLiveHint(form, "confirm-password", "", {});
-            setInputInvalid(confirmInput, false);
-        }
-        return ok;
-    }
-
-    function loginClientValid(form) {
-        const emailInput = form.querySelector("#login-email");
-        const em = stripEmailSpaces(emailInput?.value ?? "");
-        const eSt = emailLiveState(em);
-        if (eSt.ok !== true) {
-            setLiveHint(form, "login-email", eSt.ok === false ? eSt.hint : "Email is required.", {
-                invalid: true,
-            });
-            setInputInvalid(emailInput, true);
-            return false;
-        }
-        return true;
-    }
-
-    canonicalizeAuthUrl();
+    history.pushState({ authModal: panel }, "", "/");
     fullRoute();
-    setupLoginLive();
-    setupSignupLive();
+  }
 
-    const loginForm = document.getElementById("form-login");
-    if (loginForm) {
-        const submitBtn = loginForm.querySelector('button[type="submit"]');
-        const idleLabel = submitBtn ? submitBtn.textContent : "Log in";
+  function dismissAuthModal() {
+    if (!getAuthPanel()) return;
+    history.replaceState({}, "", "/");
+    fullRoute();
+  }
 
-        loginForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            clearAuthErrors(loginForm);
+  async function finishAuthSuccess() {
+    history.replaceState({}, "", "/");
+    fullRoute();
+    document.getElementById("form-login")?.reset();
+    document.getElementById("form-signup")?.reset();
+    document.querySelectorAll(".auth-form [data-live-hint]").forEach((el) => {
+      el.textContent = "";
+      el.classList.remove("field-live-hint--invalid", "field-live-hint--valid");
+    });
+    document.querySelectorAll(".auth-form .input--invalid").forEach((el) => {
+      el.classList.remove("input--invalid");
+    });
+    const rulesEl = document.getElementById("signup-password-rules");
+    if (rulesEl) {
+      applyPasswordRulesUi(rulesEl, "");
+    }
+    if (typeof window.pixelcadeSyncCurrentUser === "function") {
+      await window.pixelcadeSyncCurrentUser();
+    }
+  }
 
-            const emailInput = loginForm.querySelector("#login-email");
-            const email = stripEmailSpaces(emailInput?.value ?? "");
-            if (emailInput) emailInput.value = email;
-            const password = loginForm.querySelector("#login-password")?.value ?? "";
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+      return;
+    const a = e.target.closest("a");
+    if (!a) return;
+    const panel = authPanelFromHref(a.getAttribute("href"));
+    if (!panel) return;
+    e.preventDefault();
+    navigateAuth(panel);
+  });
 
-            if (!loginClientValid(loginForm)) {
-                return;
-            }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (getAuthPanel()) {
+      e.preventDefault();
+      dismissAuthModal();
+    }
+  });
 
-            setSubmitLoading(submitBtn, true, "Signing in…", idleLabel);
-            try {
-                const result = await api.post(
-                    "/api/auth/login",
-                    { email, password },
-                    { asResult: true }
-                );
+  document.querySelectorAll("[data-auth-dismiss]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      dismissAuthModal();
+    });
+  });
 
-                if (result.ok) {
-                    setSubmitLoading(submitBtn, false, "", idleLabel);
-                    await finishAuthSuccess();
-                    return;
-                }
+  initShellRouter(fullRoute);
 
-                applyApiErrors(loginForm, result.data);
-            } catch (err) {
-                showFormError(loginForm, err instanceof Error ? err.message : "Request failed");
-            } finally {
-                if (getAuthPanel() === "login") {
-                    setSubmitLoading(submitBtn, false, "", idleLabel);
-                }
-            }
-        });
+  function clearAuthErrors(form) {
+    const scope = form.closest(".auth-card") || form;
+    scope.querySelectorAll("[data-field-error]").forEach((el) => {
+      el.textContent = "";
+    });
+    scope.querySelectorAll("[data-form-error]").forEach((el) => {
+      el.textContent = "";
+      el.hidden = true;
+    });
+  }
+
+  function showFormError(form, message) {
+    const scope = form.closest(".auth-card") || form;
+    const el = scope.querySelector("[data-form-error]");
+    if (el) {
+      el.textContent = message;
+      el.hidden = false;
+    }
+  }
+
+  function applyApiErrors(form, data) {
+    const msg =
+      data?.error != null && String(data.error) !== ""
+        ? String(data.error)
+        : "Something went wrong";
+    const field = data?.field;
+    if (field && typeof field === "string") {
+      const fieldEl = form.querySelector(`[data-field-error="${field}"]`);
+      if (fieldEl) {
+        fieldEl.textContent = msg;
+        return;
+      }
+    }
+    showFormError(form, msg);
+  }
+
+  function setSubmitLoading(button, loading, loadingLabel, idleLabel) {
+    if (!button) return;
+    if (loading) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      button.dataset.idleLabel = idleLabel;
+      button.textContent = loadingLabel;
+    } else {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = button.dataset.idleLabel || idleLabel;
+    }
+  }
+
+  function setLiveHint(form, key, text, opts = {}) {
+    const invalid = opts.invalid === true;
+    const valid = opts.valid === true;
+    const el = form.querySelector(`[data-live-hint="${key}"]`);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("field-live-hint--invalid", Boolean(invalid && text));
+    el.classList.toggle("field-live-hint--valid", Boolean(valid && text));
+  }
+
+  function setInputInvalid(input, invalid) {
+    if (!input) return;
+    input.classList.toggle("input--invalid", Boolean(invalid));
+  }
+
+  function setupLoginLive() {
+    const form = document.getElementById("form-login");
+    if (!form) return;
+    const emailInput = form.querySelector("#login-email");
+    const passInput = form.querySelector("#login-password");
+
+    emailInput?.addEventListener("input", () => {
+      const cleaned = stripEmailSpaces(emailInput.value);
+      if (cleaned !== emailInput.value) emailInput.value = cleaned;
+      form.querySelector('[data-field-error="email"]').textContent = "";
+      const st = emailLiveState(cleaned);
+      setLiveHint(form, "login-email", st.hint, { invalid: st.ok === false });
+      setInputInvalid(emailInput, st.ok === false);
+    });
+
+    passInput?.addEventListener("input", () => {
+      form.querySelector('[data-field-error="password"]').textContent = "";
+    });
+
+    bindPasswordToggles(form);
+  }
+
+  function setupSignupLive() {
+    const form = document.getElementById("form-signup");
+    if (!form) return;
+    const userInput = form.querySelector("#signup-username");
+    const emailInput = form.querySelector("#signup-email");
+    const passInput = form.querySelector("#signup-password");
+    const confirmInput = form.querySelector("#signup-confirm-password");
+    const rulesEl = document.getElementById("signup-password-rules");
+
+    userInput?.addEventListener("input", () => {
+      const next = filterUsernameValue(userInput.value);
+      if (next !== userInput.value) userInput.value = next;
+      form.querySelector('[data-field-error="username"]').textContent = "";
+      const st = usernameLiveState(next);
+      setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
+      setInputInvalid(userInput, st.ok === false);
+    });
+
+    emailInput?.addEventListener("input", () => {
+      const cleaned = stripEmailSpaces(emailInput.value);
+      if (cleaned !== emailInput.value) emailInput.value = cleaned;
+      form.querySelector('[data-field-error="email"]').textContent = "";
+      const st = emailLiveState(cleaned);
+      setLiveHint(form, "signup-email", st.hint, { invalid: st.ok === false });
+      setInputInvalid(emailInput, st.ok === false);
+    });
+
+    function refreshConfirm() {
+      const pw = passInput?.value ?? "";
+      const cf = confirmInput?.value ?? "";
+      form.querySelector('[data-field-error="confirm_password"]').textContent =
+        "";
+      let hint = "";
+      let invalid = false;
+      let valid = false;
+      if (cf.length === 0) {
+        hint = "";
+      } else if (pw !== cf) {
+        hint = "Passwords do not match.";
+        invalid = true;
+      } else if (passwordMeetsRules(pw)) {
+        hint = "Passwords match.";
+        valid = true;
+      }
+      setLiveHint(form, "confirm-password", hint, { invalid, valid });
+      setInputInvalid(confirmInput, invalid);
     }
 
-    const signupForm = document.getElementById("form-signup");
-    if (signupForm) {
-        const submitBtn = signupForm.querySelector('button[type="submit"]');
-        const idleLabel = submitBtn ? submitBtn.textContent : "Create account";
+    passInput?.addEventListener("input", () => {
+      const pw = passInput.value;
+      form.querySelector('[data-field-error="password"]').textContent = "";
+      applyPasswordRulesUi(rulesEl, pw);
+      const ok = passwordMeetsRules(pw);
+      setInputInvalid(passInput, pw.length > 0 && !ok);
+      refreshConfirm();
+    });
 
-        signupForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            clearAuthErrors(signupForm);
+    confirmInput?.addEventListener("input", refreshConfirm);
 
-            const userInput = signupForm.querySelector("#signup-username");
-            const emailInput = signupForm.querySelector("#signup-email");
-            const payload = {
-                username: userInput?.value?.trim() ?? "",
-                email: stripEmailSpaces(emailInput?.value ?? ""),
-                password: signupForm.querySelector("#signup-password")?.value ?? "",
-                confirm_password: signupForm.querySelector("#signup-confirm-password")?.value ?? "",
-                accept_tos: signupForm.querySelector("#signup-accept-tos")?.checked === true,
-                accept_privacy: signupForm.querySelector("#signup-accept-privacy")?.checked === true,
-            };
+    bindPasswordToggles(form);
 
-            if (emailInput) emailInput.value = payload.email;
-
-            if (!signupClientValid(signupForm)) {
-                return;
-            }
-
-            setSubmitLoading(submitBtn, true, "Creating account…", idleLabel);
-            try {
-                const result = await api.post("/api/auth/signup", payload, { asResult: true });
-
-                if (result.ok) {
-                    setSubmitLoading(submitBtn, false, "", idleLabel);
-                    await finishAuthSuccess();
-                    return;
-                }
-
-                applyApiErrors(signupForm, result.data);
-            } catch (err) {
-                showFormError(signupForm, err instanceof Error ? err.message : "Request failed");
-            } finally {
-                if (getAuthPanel() === "signup") {
-                    setSubmitLoading(submitBtn, false, "", idleLabel);
-                }
-            }
-        });
+    if (passInput && rulesEl) {
+      applyPasswordRulesUi(rulesEl, passInput.value);
     }
+
+    if (userInput) {
+      const st = usernameLiveState(userInput.value);
+      setLiveHint(form, "username", st.hint, { invalid: st.ok === false });
+    }
+  }
+
+  function signupClientValid(form) {
+    const userInput = form.querySelector("#signup-username");
+    const emailInput = form.querySelector("#signup-email");
+    const passInput = form.querySelector("#signup-password");
+    const confirmInput = form.querySelector("#signup-confirm-password");
+    const u = userInput?.value ?? "";
+    const em = emailInput?.value ?? "";
+    const pw = passInput?.value ?? "";
+    const cf = confirmInput?.value ?? "";
+
+    let ok = true;
+    const uSt = usernameLiveState(u);
+    if (uSt.ok !== true) {
+      setLiveHint(form, "username", uSt.hint || "Username is required.", {
+        invalid: true,
+      });
+      setInputInvalid(userInput, true);
+      ok = false;
+    }
+    const eSt = emailLiveState(em);
+    if (eSt.ok !== true) {
+      setLiveHint(
+        form,
+        "signup-email",
+        eSt.ok === false ? eSt.hint : "Email is required.",
+        {
+          invalid: true,
+        },
+      );
+      setInputInvalid(emailInput, true);
+      ok = false;
+    }
+    if (!passwordMeetsRules(pw)) {
+      let msg = "Password must meet all requirements below.";
+      if (pw.length === 0) msg = "Password is required.";
+      form.querySelector('[data-field-error="password"]').textContent = msg;
+      setInputInvalid(passInput, true);
+      ok = false;
+    }
+    if (cf.length === 0) {
+      setLiveHint(form, "confirm-password", "Confirm your password.", {
+        invalid: true,
+      });
+      setInputInvalid(confirmInput, true);
+      ok = false;
+    } else if (pw !== cf) {
+      setLiveHint(form, "confirm-password", "Passwords do not match.", {
+        invalid: true,
+      });
+      setInputInvalid(confirmInput, true);
+      ok = false;
+    } else if (passwordMeetsRules(pw)) {
+      setLiveHint(form, "confirm-password", "Passwords match.", {
+        valid: true,
+      });
+      setInputInvalid(confirmInput, false);
+    } else {
+      setLiveHint(form, "confirm-password", "", {});
+      setInputInvalid(confirmInput, false);
+    }
+    return ok;
+  }
+
+  function loginClientValid(form) {
+    const emailInput = form.querySelector("#login-email");
+    const em = stripEmailSpaces(emailInput?.value ?? "");
+    const eSt = emailLiveState(em);
+    if (eSt.ok !== true) {
+      setLiveHint(
+        form,
+        "login-email",
+        eSt.ok === false ? eSt.hint : "Email is required.",
+        {
+          invalid: true,
+        },
+      );
+      setInputInvalid(emailInput, true);
+      return false;
+    }
+    return true;
+  }
+
+  canonicalizeAuthUrl();
+  fullRoute();
+  setupLoginLive();
+  setupSignupLive();
+
+  const loginForm = document.getElementById("form-login");
+  if (loginForm) {
+    const submitBtn = loginForm.querySelector('button[type="submit"]');
+    const idleLabel = submitBtn ? submitBtn.textContent : "Log in";
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearAuthErrors(loginForm);
+
+      const emailInput = loginForm.querySelector("#login-email");
+      const email = stripEmailSpaces(emailInput?.value ?? "");
+      if (emailInput) emailInput.value = email;
+      const password = loginForm.querySelector("#login-password")?.value ?? "";
+
+      if (!loginClientValid(loginForm)) {
+        return;
+      }
+
+      setSubmitLoading(submitBtn, true, "Signing in…", idleLabel);
+      try {
+        const result = await api.post(
+          "/api/auth/login",
+          { email, password },
+          { asResult: true },
+        );
+
+        if (result.ok) {
+          setSubmitLoading(submitBtn, false, "", idleLabel);
+          await finishAuthSuccess();
+          return;
+        }
+
+        applyApiErrors(loginForm, result.data);
+      } catch (err) {
+        showFormError(
+          loginForm,
+          err instanceof Error ? err.message : "Request failed",
+        );
+      } finally {
+        if (getAuthPanel() === "login") {
+          setSubmitLoading(submitBtn, false, "", idleLabel);
+        }
+      }
+    });
+  }
+
+  const signupForm = document.getElementById("form-signup");
+  if (signupForm) {
+    const submitBtn = signupForm.querySelector('button[type="submit"]');
+    const idleLabel = submitBtn ? submitBtn.textContent : "Create account";
+
+    signupForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearAuthErrors(signupForm);
+
+      const userInput = signupForm.querySelector("#signup-username");
+      const emailInput = signupForm.querySelector("#signup-email");
+      const payload = {
+        username: userInput?.value?.trim() ?? "",
+        email: stripEmailSpaces(emailInput?.value ?? ""),
+        password: signupForm.querySelector("#signup-password")?.value ?? "",
+        confirm_password:
+          signupForm.querySelector("#signup-confirm-password")?.value ?? "",
+        accept_tos:
+          signupForm.querySelector("#signup-accept-tos")?.checked === true,
+        accept_privacy:
+          signupForm.querySelector("#signup-accept-privacy")?.checked === true,
+      };
+
+      if (emailInput) emailInput.value = payload.email;
+
+      if (!signupClientValid(signupForm)) {
+        return;
+      }
+
+      setSubmitLoading(submitBtn, true, "Creating account…", idleLabel);
+      try {
+        const result = await api.post("/api/auth/signup", payload, {
+          asResult: true,
+        });
+
+        if (result.ok) {
+          setSubmitLoading(submitBtn, false, "", idleLabel);
+          await finishAuthSuccess();
+          return;
+        }
+
+        applyApiErrors(signupForm, result.data);
+      } catch (err) {
+        showFormError(
+          signupForm,
+          err instanceof Error ? err.message : "Request failed",
+        );
+      } finally {
+        if (getAuthPanel() === "signup") {
+          setSubmitLoading(submitBtn, false, "", idleLabel);
+        }
+      }
+    });
+  }
 </script>
 {% endblock %}
