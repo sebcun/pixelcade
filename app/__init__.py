@@ -7,7 +7,7 @@ from flask_migrate import Migrate
 
 from app.blueprints.auth import api_auth_bp, auth_bp
 from app.blueprints.avatar import avatar_bp
-from app.blueprints.develop import develop_bp
+from app.blueprints.develop import api_develop_bp, develop_bp
 from app.blueprints.games import games_bp
 from app.blueprints.main import main_bp
 from app.blueprints.profile import profile_bp
@@ -43,12 +43,14 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     csrf.init_app(app)
     protect_api_blueprint(api_auth_bp)
+    protect_api_blueprint(api_develop_bp)
 
     from . import models  # noqa: F401
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(api_auth_bp, url_prefix="/api/auth")
     app.register_blueprint(develop_bp, url_prefix="/develop")
+    app.register_blueprint(api_develop_bp, url_prefix="/api/develop")
     app.register_blueprint(games_bp, url_prefix="/games")
     app.register_blueprint(profile_bp, url_prefix="/profile")
     app.register_blueprint(avatar_bp, url_prefix="/avatar")
