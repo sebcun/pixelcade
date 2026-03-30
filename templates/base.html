@@ -42,12 +42,14 @@
 <body>
     <nav class="site-nav" aria-label="Main navigation">
         {% block nav %}
-        <div class="nav-start">
-            <a href="{{ url_for('main.shell') }}" class="nav-brand font-display">Pixelcade</a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('main.shell') }}">Home</a></li>
-                <li><a href="{{ url_for('develop.index') }}">Develop</a></li>
-            </ul>
+        <div id="nav-cluster-player" class="nav-cluster">
+            <div class="nav-start">
+                <a href="{{ url_for('main.shell') }}" class="nav-brand font-display" data-spa-nav>Pixelcade</a>
+                <ul class="nav-links">
+                    <li><a href="{{ url_for('main.shell') }}" data-spa-nav>Home</a></li>
+                    <li><a href="{{ url_for('develop.index') }}" data-spa-nav>Develop</a></li>
+                </ul>
+            </div>
         </div>
         <div class="nav-actions">
             <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Switch theme">
@@ -55,6 +57,7 @@
                 <span class="theme-toggle__icon theme-toggle__icon--dark" aria-hidden="true"><i data-lucide="moon"></i></span>
             </button>
             <div class="nav-auth-slot" id="nav-auth-slot"></div>
+            <div class="nav-develop-user-slot" id="nav-develop-user-slot" hidden></div>
         </div>
         {% endblock %}
     </nav>

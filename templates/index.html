@@ -3,7 +3,7 @@
 {% block content %}
 <main class="app-shell">
     <div id="view-home" class="auth-view">
-        <section class="showcase" aria-label="Welcome">
+        <section id="home-showcase" class="showcase" aria-label="Welcome">
             <h1 class="font-display">Pixelcade</h1>
             <p class="showcase-lead">Play and build tiny games in your browser.</p>
             <div class="showcase-actions">
@@ -11,6 +11,49 @@
                 <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}">Log in</a>
             </div>
         </section>
+    </div>
+
+    <div id="view-develop-home" class="develop-shell" hidden>
+        <div class="develop-layout">
+            <header class="develop-page-header">
+                <div class="develop-page-header__titles">
+                    <p class="develop-kicker font-display">Create</p>
+                    <h1 class="develop-page-title">Your experiences</h1>
+                    <p class="develop-page-lead">Build and publish games on Pixelcade - all in the browser.</p>
+                </div>
+                <button type="button" class="btn btn--develop-new" id="btn-new-game">New Game</button>
+            </header>
+            <p id="develop-home-error" class="develop-banner develop-banner--error" role="alert" hidden></p>
+            <div id="develop-games-grid" class="develop-games-grid" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <div id="view-develop-settings" class="develop-shell" hidden>
+        <div class="develop-layout develop-layout--narrow">
+            <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
+            <h1 class="develop-page-title develop-page-title--sub">Game settings</h1>
+            <p class="develop-page-lead">Configure title, visibility, and thumbnail before you publish.</p>
+            <p class="develop-stub">Experience ID: <strong id="develop-settings-game-id">—</strong></p>
+            <p class="develop-stub develop-stub--muted">Game</p>
+        </div>
+    </div>
+
+    <div id="view-develop-editor" class="develop-shell" hidden>
+        <div class="develop-layout develop-layout--narrow">
+            <a href="/develop" class="develop-back-link" data-spa-nav>← All experiences</a>
+            <h1 class="develop-page-title develop-page-title--sub">Editor</h1>
+            <p class="develop-page-lead">Description.</p>
+            <p class="develop-stub">Experience ID: <strong id="develop-editor-game-id">—</strong></p>
+            <p class="develop-stub develop-stub--muted">Game</p>
+        </div>
+    </div>
+
+    <div id="view-develop-unknown" class="develop-shell" hidden>
+        <div class="develop-layout develop-layout--narrow">
+            <h1 class="develop-page-title develop-page-title--sub">Page not found</h1>
+            <p class="develop-page-lead">That developer URL does not exist.</p>
+            <a href="/develop" class="btn btn--nav-primary" data-spa-nav>Back to Create</a>
+        </div>
     </div>
 
     <div id="auth-modal-root" class="auth-modal-root" aria-hidden="true">
@@ -118,6 +161,11 @@
 <script type="module">
     import { api } from "{{ url_for('static', filename='js/api.js') }}";
     import {
+        applyShellRoute,
+        initShellRouter,
+        isDevelopSection,
+    } from "{{ url_for('static', filename='js/app-shell.js') }}";
+    import {
         filterUsernameValue,
         usernameLiveState,
         stripEmailSpaces,
@@ -203,7 +251,7 @@
         const isLogin = panel === "login";
         const isSignup = panel === "signup";
 
-        home.hidden = false;
+        home.hidden = isDevelopSection();
 
         if (authOpen) {
             modalRoot.classList.add("is-open");
@@ -235,29 +283,36 @@
 
         prevAuthPanel = panel;
 
-        document.title =
-            isLogin ? "Log in — Pixelcade" : isSignup ? "Sign up — Pixelcade" : "Pixelcade";
+        if (!isDevelopSection()) {
+            document.title =
+                isLogin ? "Log in — Pixelcade" : isSignup ? "Sign up — Pixelcade" : "Pixelcade";
+        }
+    }
+
+    function fullRoute() {
+        applyShellRoute();
+        applyRoute();
     }
 
     function navigateAuth(panel) {
         if (isUserLoggedIn()) {
             history.replaceState({}, "", "/");
-            applyRoute();
+            fullRoute();
             return;
         }
         history.pushState({ authModal: panel }, "", "/");
-        applyRoute();
+        fullRoute();
     }
 
     function dismissAuthModal() {
         if (!getAuthPanel()) return;
         history.replaceState({}, "", "/");
-        applyRoute();
+        fullRoute();
     }
 
     async function finishAuthSuccess() {
         history.replaceState({}, "", "/");
-        applyRoute();
+        fullRoute();
         document.getElementById("form-login")?.reset();
         document.getElementById("form-signup")?.reset();
         document.querySelectorAll(".auth-form [data-live-hint]").forEach((el) => {
@@ -302,8 +357,7 @@
         });
     });
 
-    window.addEventListener("popstate", applyRoute);
-    window.addEventListener("pixelcade-user-sync", applyRoute);
+    initShellRouter(fullRoute);
 
     function clearAuthErrors(form) {
         const scope = form.closest(".auth-card") || form;
@@ -524,7 +578,7 @@
     }
 
     canonicalizeAuthUrl();
-    applyRoute();
+    fullRoute();
     setupLoginLive();
     setupSignupLive();
 

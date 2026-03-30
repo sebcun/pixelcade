@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Optional
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 from flask_login import current_user, login_required
 from flask_limiter.util import get_remote_address
 from sqlalchemy import func
@@ -26,7 +26,7 @@ def _rl_user_key() -> str:
     return f"ip:{get_remote_address()}"
 
 
-def _game_to_dict(game: Game) -> dict[str, Any]:
+def _game_to_dict(game: Game, *, like_count: int = 0) -> dict[str, Any]:
     return {
         "id": game.id,
         "owner_id": game.owner_id,
@@ -34,6 +34,7 @@ def _game_to_dict(game: Game) -> dict[str, Any]:
         "description": game.description,
         "status": game.status,
         "play_count": game.play_count,
+        "like_count": int(like_count),
         "thumbnail_path": game.thumbnail_path,
         "max_scenes": game.max_scenes,
         "max_sprites": game.max_sprites,
@@ -41,6 +42,27 @@ def _game_to_dict(game: Game) -> dict[str, Any]:
         "created_at": game.created_at.isoformat() + "Z" if game.created_at else None,
         "updated_at": game.updated_at.isoformat() + "Z" if game.updated_at else None,
     }
+
+
+def _positive_like_count(game_id: int) -> int:
+    n = (
+        db.session.query(func.count(GameLike.user_id))
+        .filter(GameLike.game_id == game_id, GameLike.value == 1)
+        .scalar()
+    )
+    return int(n or 0)
+
+
+def _batch_positive_like_counts(game_ids: list[int]) -> dict[int, int]:
+    if not game_ids:
+        return {}
+    rows = (
+        db.session.query(GameLike.game_id, func.count(GameLike.user_id))
+        .filter(GameLike.game_id.in_(game_ids), GameLike.value == 1)
+        .group_by(GameLike.game_id)
+        .all()
+    )
+    return {int(gid): int(c) for gid, c in rows}
 
 
 def _is_blank(value: Optional[str]) -> bool:
@@ -210,7 +232,7 @@ def _parse_optional_string(data: dict, key: str) -> tuple[Optional[str], Optiona
 
 @develop_bp.route("/")
 def index():
-    return "develop portal placeholder"
+    return render_template("index.html")
 
 
 
@@ -252,7 +274,7 @@ def api_create_game():
     )
     db.session.add(game)
     db.session.commit()
-    return jsonify(_game_to_dict(game)), 201
+    return jsonify(_game_to_dict(game, like_count=0)), 201
 
 
 @api_develop_bp.route("/games", methods=["GET"])
@@ -263,7 +285,14 @@ def api_list_games():
         .order_by(Game.updated_at.desc())
         .all()
     )
-    return jsonify([_game_to_dict(g) for g in games]), 200
+    ids = [g.id for g in games]
+    counts = _batch_positive_like_counts(ids)
+    return (
+        jsonify(
+            [_game_to_dict(g, like_count=counts.get(g.id, 0)) for g in games]
+        ),
+        200,
+    )
 
 
 @api_develop_bp.route("/games/<int:game_id>", methods=["GET"])
@@ -272,7 +301,7 @@ def api_get_game(game_id: int):
     game, err = _get_owned_game(game_id)
     if err:
         return err[0], err[1]
-    return jsonify(_game_to_dict(game)), 200
+    return jsonify(_game_to_dict(game, like_count=_positive_like_count(game.id))), 200
 
 
 @api_develop_bp.route("/games/<int:game_id>", methods=["PATCH"])
@@ -331,7 +360,9 @@ def api_patch_game(game_id: int):
     game.description = next_description
     game.status = next_status
     db.session.commit()
-    return jsonify(_game_to_dict(game)), 200
+    return jsonify(
+        _game_to_dict(game, like_count=_positive_like_count(game.id))
+    ), 200
 
 
 def _cleanup_created_files(paths: list[Path]) -> None:
@@ -450,6 +481,7 @@ def api_delete_game(game_id: int):
     return jsonify({"message": "Game deleted"}), 200
 
 
+# --- Scenes (under /api/develop/games/<game_id>/scenes) ---
 
 
 @api_develop_bp.route("/games/<int:game_id>/scenes", methods=["GET"])
@@ -573,6 +605,8 @@ def api_delete_scene(game_id: int, scene_id: int):
     db.session.commit()
     return jsonify({"message": "Scene deleted"}), 200
 
+
+# --- Scripts (under .../scenes/<scene_id>/scripts) ---
 
 
 @api_develop_bp.route(
@@ -714,6 +748,8 @@ def api_delete_script(game_id: int, scene_id: int, script_id: int):
     db.session.commit()
     return jsonify({"message": "Script deleted"}), 200
 
+
+# --- Sprites (under /api/develop/games/<game_id>/sprites) ---
 
 
 @api_develop_bp.route("/games/<int:game_id>/sprites", methods=["GET"])
