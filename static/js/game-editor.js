@@ -116,31 +116,106 @@ let bound = false;
 
 let canvasEl = null;
 let ctx = null;
-let imgData = null; // ImageData for 32x32 (kept in sync with canvas)
+let imgData = null; 
 
 let selectedSpriteId = null;
 let sprites = [];
 
-let spriteServerHasUnpublishedChanges = new Map(); // id -> bool
+let spriteServerHasUnpublishedChanges = new Map();
 let spriteSidebarEls = new Map(); // id -> { itemEl, dotEl }
 
 let history = [];
 let historyIndex = 0;
-let historyBasePixels = null; // loaded draft pixels, used for local dirty computation
+let historyBasePixels = null; 
 
-let pendingEditStartPixels = null; // Uint8ClampedArray
+let pendingEditStartPixels = null;
 let pendingEditHadChanges = false;
 
 let isDrawing = false;
-let currentTool = "pencil"; // pencil | eraser | fill | picker
+let currentTool = "pencil"; 
 
-// Pink is the default selected colour.
 let selectedHex = "#FF004D";
 let selectedOpacity = 1;
 
-const toolButtons = new Map(); // tool -> buttonEl
+const toolButtons = new Map(); 
 
 let spriteLoadToken = 0;
+
+let sidebarMode = "root"; // root | scenes | scripts | sprites
+
+let scenes = [];
+let selectedSceneId = null;
+
+let scripts = [];
+let selectedScriptId = null;
+let selectedScriptSceneId = null;
+
+let scriptServerHasUnpublishedChanges = new Map(); 
+let scriptSidebarEls = new Map(); 
+
+let scriptLastSavedDraftById = new Map(); 
+let scriptAutosaveTimer = null;
+let scriptAutosaveToken = 0;
+
+function setScriptEditorVisible(visible) {
+  const panel = $("script-editor-panel");
+  if (panel) panel.hidden = !visible;
+}
+
+function setSidebarMode(nextMode) {
+  sidebarMode = nextMode;
+
+  const backBtn = $("develop-editor-sidebar-back");
+  const root = $("develop-sidebar-root");
+  const scenesSec = $("develop-sidebar-scenes");
+  const scriptsSec = $("develop-sidebar-scripts");
+  const spritesSec = $("develop-sidebar-sprites");
+  const kicker = $("develop-editor-sidebar-kicker");
+
+  const showBack = nextMode !== "root";
+  if (backBtn) backBtn.hidden = !showBack;
+
+  if (root) root.hidden = nextMode !== "root";
+  if (scenesSec) scenesSec.hidden = nextMode !== "scenes";
+  if (scriptsSec) scriptsSec.hidden = nextMode !== "scripts";
+  if (spritesSec) spritesSec.hidden = nextMode !== "sprites";
+
+  if (kicker) {
+    kicker.textContent =
+      nextMode === "scenes"
+        ? "Scenes"
+        : nextMode === "scripts"
+          ? "Scripts"
+          : nextMode === "sprites"
+            ? "Sprites"
+            : "Editor";
+  }
+}
+
+function setMainPanel(panel) {
+  setScriptEditorVisible(panel === "script");
+  setSpriteEditorVisible(panel === "sprite");
+}
+
+function setScriptUnsavedDotVisible(visible) {
+  const dot = $("script-editor-unsaved-dot");
+  if (dot) dot.hidden = !visible;
+}
+
+function setScriptSaveStatus(text) {
+  const el = $("script-editor-save-status");
+  if (!el) return;
+  el.textContent = text || "";
+}
+
+function getScriptTextareaValue() {
+  return String($("script-editor-textarea")?.value ?? "");
+}
+
+function setScriptTextareaValue(value) {
+  const ta = $("script-editor-textarea");
+  if (ta) ta.value = value != null ? String(value) : "";
+}
 
 function setHistoryUi() {
   const undoBtn = $("sprite-editor-undo");
@@ -149,11 +224,13 @@ function setHistoryUi() {
   if (redoBtn) redoBtn.disabled = !(historyIndex < history.length - 1);
 }
 
-function setEditorVisible(visible) {
+function setSpriteEditorVisible(visible) {
   const panel = $("sprite-editor-panel");
-  const layout = $("sprite-editor-layout");
   if (panel) panel.hidden = !visible;
-  if (layout) layout.classList.toggle("sprite-editor-layout--empty", !visible);
+}
+
+function setEditorVisible(visible) {
+  setSpriteEditorVisible(visible);
 }
 
 function setEditorButtonsEnabled(enabled) {
@@ -366,6 +443,7 @@ async function loadSpriteIntoEditor(sprite) {
   selectedSpriteId = sprite.id;
   setEditorButtonsEnabled(true);
   setEditorVisible(true);
+  setMainPanel("sprite");
 
   const nameEl = $("sprite-editor-sprite-name");
   if (nameEl) nameEl.textContent = sprite.name != null ? String(sprite.name) : "Untitled";
@@ -511,7 +589,7 @@ function bindOnce() {
     });
   }
 
-  // Sidebar selection (delegated)
+  // Sidebar selection
   const listEl = $("sprite-sidebar-list");
   if (listEl) {
     listEl.addEventListener("click", (e) => {
@@ -521,6 +599,202 @@ function bindOnce() {
       const sprite = sprites.find((s) => Number(s.id) === id);
       if (!sprite) return;
       void loadSpriteIntoEditor(sprite);
+    });
+  }
+
+  // Sidebar navigation 
+  const navScenes = $("develop-nav-scenes");
+  if (navScenes && navScenes.dataset.bound !== "1") {
+    navScenes.dataset.bound = "1";
+    navScenes.addEventListener("click", async () => {
+      setSidebarMode("scenes");
+      await loadScenes();
+      setMainPanel("none");
+    });
+  }
+
+  const navSprites = $("develop-nav-sprites");
+  if (navSprites && navSprites.dataset.bound !== "1") {
+    navSprites.dataset.bound = "1";
+    navSprites.addEventListener("click", async () => {
+      setSidebarMode("sprites");
+      setMainPanel(selectedSpriteId != null ? "sprite" : "none");
+    });
+  }
+
+  const backBtn = $("develop-editor-sidebar-back");
+  if (backBtn && backBtn.dataset.bound !== "1") {
+    backBtn.dataset.bound = "1";
+    backBtn.addEventListener("click", async () => {
+      if (sidebarMode === "scripts") {
+        if (scriptAutosaveTimer) {
+          clearTimeout(scriptAutosaveTimer);
+          scriptAutosaveTimer = null;
+        }
+        scriptAutosaveToken++;
+        selectedScriptId = null;
+        selectedScriptSceneId = null;
+        setMainPanel("none");
+        setSidebarMode("scenes");
+        renderScenes(scenes);
+      } else {
+        setSidebarMode("root");
+        setMainPanel("none");
+      }
+    });
+  }
+
+  const scenesList = $("develop-scenes-list");
+  if (scenesList && scenesList.dataset.bound !== "1") {
+    scenesList.dataset.bound = "1";
+    scenesList.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-scene-id]");
+      if (!btn) return;
+      const sceneId = Number(btn.dataset.sceneId);
+      const scene = scenes.find((s) => Number(s.id) === sceneId);
+      if (!scene) return;
+      selectedSceneId = sceneId;
+      const nameEl = $("develop-active-scene-name");
+      if (nameEl) nameEl.textContent = scene.name != null ? String(scene.name) : "Untitled";
+      setSidebarMode("scripts");
+      await loadScriptsForScene(sceneId);
+      setMainPanel("none");
+    });
+
+    scenesList.addEventListener("dblclick", (e) => {
+      const btn = e.target.closest("[data-scene-id]");
+      if (!btn) return;
+      const sceneId = Number(btn.dataset.sceneId);
+      const scene = scenes.find((s) => Number(s.id) === sceneId);
+      if (!scene) return;
+      const nameText = btn.querySelector(".develop-editor-item__name-text");
+      if (!nameText) return;
+      beginInlineRename(nameText, String(scene.name ?? ""), async (nextName) => {
+        const updated = await api.patch(
+          `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}`,
+          { name: nextName },
+        );
+        scenes = scenes.map((s) => (Number(s.id) === sceneId ? updated : s));
+        renderScenes(scenes);
+        if (Number(selectedSceneId) === sceneId) {
+          const active = $("develop-active-scene-name");
+          if (active) active.textContent = updated.name ?? "Untitled";
+        }
+        showToast("Renamed", "success");
+      });
+    });
+  }
+
+  const scriptsList = $("develop-scripts-list");
+  if (scriptsList && scriptsList.dataset.bound !== "1") {
+    scriptsList.dataset.bound = "1";
+    scriptsList.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-script-id]");
+      if (!btn) return;
+      const scriptId = Number(btn.dataset.scriptId);
+      const script = scripts.find((s) => Number(s.id) === scriptId);
+      if (!script) return;
+      void openScriptInEditor(selectedSceneId, script);
+    });
+
+    scriptsList.addEventListener("dblclick", (e) => {
+      const btn = e.target.closest("[data-script-id]");
+      if (!btn) return;
+      const scriptId = Number(btn.dataset.scriptId);
+      const script = scripts.find((s) => Number(s.id) === scriptId);
+      if (!script) return;
+      const nameText = btn.querySelector(".develop-editor-item__name-text");
+      if (!nameText) return;
+      const sceneId = Number(selectedSceneId);
+      beginInlineRename(nameText, String(script.name ?? ""), async (nextName) => {
+        const updated = await api.patch(
+          `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts/${scriptId}`,
+          { name: nextName },
+        );
+        scripts = scripts.map((s) => (Number(s.id) === scriptId ? updated : s));
+        renderScripts(scripts);
+        if (Number(selectedScriptId) === scriptId) {
+          const heading = $("script-editor-script-name");
+          if (heading) heading.textContent = updated.name ?? "Untitled";
+        }
+        showToast("Renamed", "success");
+      });
+    });
+  }
+
+  const newSceneBtn = $("develop-new-scene");
+  if (newSceneBtn && newSceneBtn.dataset.bound !== "1") {
+    newSceneBtn.dataset.bound = "1";
+    newSceneBtn.addEventListener("click", async () => {
+      if (!gameIdCurrent) return;
+      const name = window.prompt("Name for new scene", "scene");
+      if (name == null) return;
+      const trimmed = String(name).trim();
+      if (!trimmed) {
+        showToast("Name must not be empty", "error");
+        return;
+      }
+      newSceneBtn.disabled = true;
+      const idle = newSceneBtn.textContent;
+      newSceneBtn.textContent = "Creating…";
+      try {
+        const created = await api.post(
+          `/api/develop/games/${gameIdCurrent}/scenes`,
+          { name: trimmed },
+        );
+        scenes = [...scenes, created];
+        renderScenes(scenes);
+        showToast("Scene created", "success");
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : "Could not create scene", "error");
+      } finally {
+        newSceneBtn.disabled = false;
+        newSceneBtn.textContent = idle;
+      }
+    });
+  }
+
+  const newScriptBtn = $("develop-new-script");
+  if (newScriptBtn && newScriptBtn.dataset.bound !== "1") {
+    newScriptBtn.dataset.bound = "1";
+    newScriptBtn.addEventListener("click", async () => {
+      if (!gameIdCurrent || selectedSceneId == null) return;
+      const name = window.prompt("Name for new script", "main");
+      if (name == null) return;
+      const trimmed = String(name).trim();
+      if (!trimmed) {
+        showToast("Name must not be empty", "error");
+        return;
+      }
+      newScriptBtn.disabled = true;
+      const idle = newScriptBtn.textContent;
+      newScriptBtn.textContent = "Creating…";
+      try {
+        const created = await api.post(
+          `/api/develop/games/${gameIdCurrent}/scenes/${selectedSceneId}/scripts`,
+          { name: trimmed },
+        );
+        await loadScriptsForScene(selectedSceneId);
+        const scriptId = created && created.id != null ? Number(created.id) : null;
+        const createdScript = scripts.find((s) => Number(s.id) === Number(scriptId));
+        if (createdScript) {
+          await openScriptInEditor(selectedSceneId, createdScript);
+        }
+        showToast("Script created", "success");
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : "Could not create script", "error");
+      } finally {
+        newScriptBtn.disabled = false;
+        newScriptBtn.textContent = idle;
+      }
+    });
+  }
+
+  const ta = $("script-editor-textarea");
+  if (ta && ta.dataset.bound !== "1") {
+    ta.dataset.bound = "1";
+    ta.addEventListener("input", () => {
+      scheduleScriptAutosave();
     });
   }
 
@@ -546,33 +820,6 @@ function bindOnce() {
     });
   }
 
-  // Keyboard shortcuts (scoped to editor route via focus)
-  window.addEventListener("keydown", (e) => {
-    if (!gameIdCurrent) return;
-    if (!document.getElementById("view-develop-editor")?.hidden) {
-      const key = e.key.toLowerCase();
-      const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        if (historyIndex > 0) {
-          historyIndex--;
-          applyHistorySnapshot(history[historyIndex]);
-          setHistoryUi();
-          syncDirtyUiForCurrentSprite();
-        }
-      } else if (ctrl && (key === "y" || (key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        if (historyIndex < history.length - 1) {
-          historyIndex++;
-          applyHistorySnapshot(history[historyIndex]);
-          setHistoryUi();
-          syncDirtyUiForCurrentSprite();
-        }
-      }
-    }
-  });
-
-  // Canvas pointer drawing
   canvasEl.addEventListener("pointerdown", (e) => {
     if (!selectedSpriteId) return;
     if (e.button !== 0 && e.pointerType !== "touch") return;
@@ -590,13 +837,11 @@ function bindOnce() {
       return;
     }
 
-    // Pencil/eraser stroke.
     isDrawing = true;
     beginEdit();
     applyDrawingStrokePixel(x, y);
     ctx.putImageData(imgData, 0, 0);
     syncDirtyUiForSpriteId(selectedSpriteId);
-    // Commit happens on pointerup.
     e.preventDefault();
   });
 
@@ -619,7 +864,6 @@ function bindOnce() {
   canvasEl.addEventListener("pointercancel", endStroke);
   canvasEl.addEventListener("pointerleave", endStroke);
 
-  // Save Draft
   const saveBtn = $("sprite-editor-save-draft");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
@@ -651,12 +895,10 @@ function bindOnce() {
           }, "image/png");
         });
 
-        // Treat the current in-memory canvas as the saved draft baseline.
         historyBasePixels = new Uint8ClampedArray(imgData.data);
         setSaveDraftEnabled(false);
         syncDirtyUiForSpriteId(spriteId);
 
-        // Fetch fresh list to update sidebar previews and the dot indicator.
         const list = await api.get(
           `/api/develop/games/${gameIdCurrent}/sprites`,
         );
@@ -697,7 +939,6 @@ function bindOnce() {
           `/api/develop/games/${gameIdCurrent}/sprites`,
           { name: trimmed },
         );
-        // Reload + open.
         const list = await api.get(
           `/api/develop/games/${gameIdCurrent}/sprites`,
         );
@@ -793,7 +1034,6 @@ function bindOnce() {
         setHistoryUi();
         setEditorButtonsEnabled(false);
 
-        // Refresh list and pick next sprite.
         await refreshGameEditorView(gameIdCurrent);
       } catch (e) {
         showToast(
@@ -849,7 +1089,6 @@ function renderSprites(spritesToRender, preserveSelection) {
       thumb.appendChild(placeholder);
     }
 
-    // Dot indicator reflects backend `has_unpublished_changes` only.
     spriteServerHasUnpublishedChanges.set(id, Boolean(sprite.has_unpublished_changes));
     dot.hidden = !Boolean(sprite.has_unpublished_changes);
 
@@ -869,6 +1108,267 @@ function renderSprites(spritesToRender, preserveSelection) {
   }
 }
 
+function renderEmptyList(listEl, message) {
+  if (!listEl) return;
+  listEl.replaceChildren();
+  const p = document.createElement("p");
+  p.className = "sprite-sidebar__empty";
+  p.textContent = message;
+  listEl.appendChild(p);
+}
+
+function renderScenes(scenesToRender) {
+  const listEl = $("develop-scenes-list");
+  if (!listEl) return;
+  listEl.replaceChildren();
+
+  if (!Array.isArray(scenesToRender) || scenesToRender.length === 0) {
+    renderEmptyList(listEl, "No scenes yet. Create one to start.");
+    return;
+  }
+
+  for (const scene of scenesToRender) {
+    const id = Number(scene.id);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "develop-editor-item";
+    btn.dataset.sceneId = String(id);
+    btn.classList.toggle("is-selected", Number(selectedSceneId) === id);
+
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "develop-editor-item__name";
+
+    const nameText = document.createElement("span");
+    nameText.className = "develop-editor-item__name-text";
+    nameText.textContent = scene.name != null ? String(scene.name) : "Untitled";
+    nameText.title = nameText.textContent;
+
+    nameWrap.appendChild(nameText);
+
+    const meta = document.createElement("span");
+    meta.className = "develop-editor-item__meta";
+
+    btn.appendChild(nameWrap);
+    btn.appendChild(meta);
+
+    listEl.appendChild(btn);
+  }
+}
+
+function renderScripts(scriptsToRender) {
+  const listEl = $("develop-scripts-list");
+  if (!listEl) return;
+  listEl.replaceChildren();
+  scriptSidebarEls.clear();
+
+  if (!Array.isArray(scriptsToRender) || scriptsToRender.length === 0) {
+    renderEmptyList(listEl, "No scripts yet. Create one to start.");
+    return;
+  }
+
+  for (const script of scriptsToRender) {
+    const id = Number(script.id);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "develop-editor-item";
+    btn.dataset.scriptId = String(id);
+    btn.classList.toggle("is-selected", Number(selectedScriptId) === id);
+
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "develop-editor-item__name";
+
+    const nameText = document.createElement("span");
+    nameText.className = "develop-editor-item__name-text";
+    nameText.textContent = script.name != null ? String(script.name) : "Untitled";
+    nameText.title = nameText.textContent;
+
+    const dot = document.createElement("span");
+    dot.className = "editor-unpublished-dot";
+    dot.hidden = !Boolean(script.has_unpublished_changes);
+
+    nameWrap.appendChild(nameText);
+
+    const meta = document.createElement("span");
+    meta.className = "develop-editor-item__meta";
+    meta.appendChild(dot);
+
+    btn.appendChild(nameWrap);
+    btn.appendChild(meta);
+    listEl.appendChild(btn);
+
+    scriptServerHasUnpublishedChanges.set(id, Boolean(script.has_unpublished_changes));
+    scriptSidebarEls.set(id, { itemEl: btn, dotEl: dot, nameEl: nameText });
+
+    if (!scriptLastSavedDraftById.has(id)) {
+      scriptLastSavedDraftById.set(id, script.draft_content != null ? String(script.draft_content) : "");
+    }
+  }
+}
+
+async function loadScenes() {
+  if (!gameIdCurrent) return;
+  const listEl = $("develop-scenes-list");
+  renderEmptyList(listEl, "Loading scenes…");
+  try {
+    const list = await api.get(`/api/develop/games/${gameIdCurrent}/scenes`);
+    scenes = Array.isArray(list) ? list : [];
+    renderScenes(scenes);
+  } catch (e) {
+    renderEmptyList(listEl, e instanceof Error ? e.message : "Could not load scenes");
+    showToast(e instanceof Error ? e.message : "Could not load scenes", "error");
+  }
+}
+
+async function loadScriptsForScene(sceneId) {
+  if (!gameIdCurrent || sceneId == null) return;
+  const listEl = $("develop-scripts-list");
+  renderEmptyList(listEl, "Loading scripts…");
+  try {
+    const list = await api.get(
+      `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts`,
+    );
+    scripts = Array.isArray(list) ? list : [];
+    renderScripts(scripts);
+  } catch (e) {
+    renderEmptyList(listEl, e instanceof Error ? e.message : "Could not load scripts");
+    showToast(e instanceof Error ? e.message : "Could not load scripts", "error");
+  }
+}
+
+function computeScriptLocalDirty(scriptId) {
+  if (scriptId == null) return false;
+  const base = scriptLastSavedDraftById.get(Number(scriptId)) ?? "";
+  return getScriptTextareaValue() !== String(base);
+}
+
+function syncScriptDirtyUi() {
+  setScriptUnsavedDotVisible(computeScriptLocalDirty(selectedScriptId));
+}
+
+async function openScriptInEditor(sceneId, script) {
+  if (!script || script.id == null) return;
+  if (scriptAutosaveTimer) {
+    clearTimeout(scriptAutosaveTimer);
+    scriptAutosaveTimer = null;
+  }
+  scriptAutosaveToken++;
+
+  selectedScriptId = Number(script.id);
+  selectedScriptSceneId = Number(sceneId);
+
+  for (const [sid, els] of scriptSidebarEls.entries()) {
+    els?.itemEl?.classList.toggle("is-selected", Number(sid) === Number(selectedScriptId));
+  }
+
+  const nameEl = $("script-editor-script-name");
+  if (nameEl) nameEl.textContent = script.name != null ? String(script.name) : "Untitled";
+
+  const draft = script.draft_content != null ? String(script.draft_content) : "";
+  scriptLastSavedDraftById.set(selectedScriptId, draft);
+  setScriptTextareaValue(draft);
+  setScriptSaveStatus("");
+  syncScriptDirtyUi();
+
+  setMainPanel("script");
+}
+
+function scheduleScriptAutosave() {
+  if (!gameIdCurrent || selectedScriptId == null || selectedScriptSceneId == null) return;
+  if (!computeScriptLocalDirty(selectedScriptId)) {
+    setScriptSaveStatus("");
+    syncScriptDirtyUi();
+    return;
+  }
+
+  if (scriptAutosaveTimer) {
+    clearTimeout(scriptAutosaveTimer);
+    scriptAutosaveTimer = null;
+  }
+
+  const token = ++scriptAutosaveToken;
+  setScriptSaveStatus("Unsaved changes…");
+  syncScriptDirtyUi();
+
+  scriptAutosaveTimer = setTimeout(async () => {
+    if (token !== scriptAutosaveToken) return;
+    const sceneId = selectedScriptSceneId;
+    const scriptId = selectedScriptId;
+    const nextDraft = getScriptTextareaValue();
+
+    if (!computeScriptLocalDirty(scriptId)) {
+      setScriptSaveStatus("");
+      syncScriptDirtyUi();
+      return;
+    }
+
+    setScriptSaveStatus("Saving draft…");
+    try {
+      const updated = await api.patch(
+        `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts/${scriptId}`,
+        { draft_content: nextDraft },
+      );
+      scriptLastSavedDraftById.set(scriptId, nextDraft);
+      setScriptSaveStatus("Draft saved");
+      syncScriptDirtyUi();
+
+      scriptServerHasUnpublishedChanges.set(
+        scriptId,
+        Boolean(updated?.has_unpublished_changes),
+      );
+      const els = scriptSidebarEls.get(scriptId);
+      if (els?.dotEl) els.dotEl.hidden = !Boolean(updated?.has_unpublished_changes);
+    } catch (e) {
+      setScriptSaveStatus("Save failed");
+      showToast(
+        e instanceof Error ? e.message : "Failed to save draft",
+        "error",
+      );
+      syncScriptDirtyUi();
+    }
+  }, 1000);
+}
+
+function beginInlineRename(el, currentValue, onCommit) {
+  if (!el) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "develop-editor-item__input";
+  input.value = currentValue || "";
+
+  const parent = el.parentElement;
+  if (!parent) return;
+  parent.replaceChild(input, el);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (commit) => {
+    if (done) return;
+    done = true;
+    const next = input.value.trim();
+    parent.replaceChild(el, input);
+    if (!commit) return;
+    if (!next) {
+      showToast("Name must not be empty", "error");
+      return;
+    }
+    if (next === currentValue) return;
+    await onCommit(next);
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void finish(true);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      void finish(false);
+    }
+  });
+  input.addEventListener("blur", () => void finish(true));
+}
+
 export function syncGameEditorGameId(gameId) {
   gameIdCurrent = gameId != null ? String(gameId) : null;
 }
@@ -878,6 +1378,15 @@ export async function refreshGameEditorView(gameId) {
   bindOnce();
 
   if (!gameIdCurrent) return;
+
+  setSidebarMode("root");
+  setMainPanel("none");
+  setScriptTextareaValue("");
+  setScriptSaveStatus("");
+  setScriptUnsavedDotVisible(false);
+  selectedSceneId = null;
+  selectedScriptId = null;
+  selectedScriptSceneId = null;
 
   const listEl = $("sprite-sidebar-list");
   if (listEl) {
@@ -900,29 +1409,27 @@ export async function refreshGameEditorView(gameId) {
       renderSprites([], false);
       setEditorButtonsEnabled(false);
       setEditorVisible(false);
-      return;
+
+    } else {
+      const ids = new Set(sprites.map((s) => Number(s.id)));
+      const keep = selectedSpriteId != null && ids.has(Number(selectedSpriteId));
+      renderSprites(sprites, keep);
+
+      if (!keep) {
+        selectedSpriteId = null;
+        history = [];
+        historyIndex = 0;
+        historyBasePixels = null;
+        setHistoryUi();
+        setEditorButtonsEnabled(false);
+        setEditorVisible(false);
+      } else {
+        const selected = sprites.find(
+          (s) => Number(s.id) === Number(selectedSpriteId),
+        );
+        if (selected) await loadSpriteIntoEditor(selected);
+      }
     }
-
-    // Preserve selection when possible.
-    const ids = new Set(sprites.map((s) => Number(s.id)));
-    const keep = selectedSpriteId != null && ids.has(Number(selectedSpriteId));
-    renderSprites(sprites, keep);
-
-    if (!keep) {
-      selectedSpriteId = null;
-      history = [];
-      historyIndex = 0;
-      historyBasePixels = null;
-      setHistoryUi();
-      setEditorButtonsEnabled(false);
-      setEditorVisible(false);
-      return;
-    }
-
-    const selected = sprites.find(
-      (s) => Number(s.id) === Number(selectedSpriteId),
-    );
-    if (selected) await loadSpriteIntoEditor(selected);
   } catch (e) {
     if (listEl) {
       listEl.replaceChildren();

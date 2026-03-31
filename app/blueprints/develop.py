@@ -273,6 +273,19 @@ def api_create_game():
         status=status,
     )
     db.session.add(game)
+    db.session.flush()
+
+    scene = Scene(game_id=game.id, name="Scene 1", order_index=0)
+    db.session.add(scene)
+    db.session.flush()
+
+    script = Script(
+        scene_id=scene.id,
+        name="untitled",
+        draft_content=None,
+        published_content=None,
+    )
+    db.session.add(script)
     db.session.commit()
     return jsonify(_game_to_dict(game, like_count=0)), 201
 
@@ -542,6 +555,15 @@ def api_create_scene(game_id: int):
 
     scene = Scene(game_id=game.id, name=name, order_index=next_order)
     db.session.add(scene)
+    db.session.flush()
+
+    script = Script(
+        scene_id=scene.id,
+        name="untitled",
+        draft_content=None,
+        published_content=None,
+    )
+    db.session.add(script)
     db.session.commit()
     return jsonify(_scene_to_dict(scene)), 201
 

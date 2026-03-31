@@ -183,34 +183,174 @@
         </div>
       </header>
 
-      <div class="sprite-editor-layout" id="sprite-editor-layout">
-        <aside class="sprite-sidebar">
-          <div class="sprite-sidebar__header">
-            <p class="develop-kicker font-display">Sprites</p>
+      <div class="develop-editor-layout" id="develop-editor-layout">
+        <aside class="develop-editor-sidebar" aria-label="Editor navigation">
+          <div class="develop-editor-sidebar__top">
             <button
               type="button"
-              class="btn btn--nav-primary"
-              id="sprite-editor-new-sprite"
+              class="btn btn--nav-secondary develop-editor-back-btn"
+              id="develop-editor-sidebar-back"
+              hidden
             >
-              New Sprite
+              ← Back
+            </button>
+            <p
+              class="develop-kicker font-display develop-editor-sidebar__kicker"
+              id="develop-editor-sidebar-kicker"
+            >
+              Editor
+            </p>
+          </div>
+
+          <!-- Root: choose what to edit -->
+          <div class="develop-editor-sidebar__root" id="develop-sidebar-root">
+            <button
+              type="button"
+              class="develop-editor-nav-btn"
+              id="develop-nav-scenes"
+            >
+              Scenes
+            </button>
+            <button
+              type="button"
+              class="develop-editor-nav-btn"
+              id="develop-nav-sprites"
+            >
+              Sprites
             </button>
           </div>
 
-          <div
-            id="sprite-sidebar-list"
-            class="sprite-sidebar__list"
-            aria-live="polite"
+          <!-- Scenes list -->
+          <section
+            class="develop-editor-sidebar__section"
+            id="develop-sidebar-scenes"
+            hidden
+            aria-label="Scenes"
           >
-            <p class="sprite-sidebar__empty">Loading sprites…</p>
-          </div>
+            <button
+              type="button"
+              class="btn btn--nav-primary develop-editor-new-btn"
+              id="develop-new-scene"
+            >
+              + New Scene
+            </button>
+            <div
+              id="develop-scenes-list"
+              class="develop-editor-list"
+              aria-live="polite"
+            ></div>
+          </section>
+
+          <!-- Scripts list for selected scene -->
+          <section
+            class="develop-editor-sidebar__section"
+            id="develop-sidebar-scripts"
+            hidden
+            aria-label="Scripts"
+          >
+            <div class="develop-editor-sidebar__section-title">
+              <span class="develop-editor-sidebar__section-title-label"
+                >Scene</span
+              >
+              <span
+                id="develop-active-scene-name"
+                class="develop-editor-sidebar__section-title-value"
+                >—</span
+              >
+            </div>
+            <button
+              type="button"
+              class="btn btn--nav-primary develop-editor-new-btn"
+              id="develop-new-script"
+            >
+              + New Script
+            </button>
+            <div
+              id="develop-scripts-list"
+              class="develop-editor-list"
+              aria-live="polite"
+            ></div>
+          </section>
+
+          <!-- Sprites list -->
+          <section
+            class="develop-editor-sidebar__section"
+            id="develop-sidebar-sprites"
+            hidden
+            aria-label="Sprites"
+          >
+            <div class="sprite-sidebar__header">
+              <p class="develop-kicker font-display">Sprites</p>
+              <button
+                type="button"
+                class="btn btn--nav-primary develop-editor-new-btn"
+                id="sprite-editor-new-sprite"
+              >
+                + New Sprite
+              </button>
+            </div>
+            <div
+              id="sprite-sidebar-list"
+              class="sprite-sidebar__list"
+              aria-live="polite"
+            >
+              <p class="sprite-sidebar__empty">Loading sprites…</p>
+            </div>
+          </section>
         </aside>
 
-        <section
-          class="sprite-editor-panel"
-          id="sprite-editor-panel"
-          aria-label="Sprite editor"
-          hidden
-        >
+        <main class="develop-editor-main" aria-label="Editor workspace">
+          <section
+            class="script-editor-panel"
+            id="script-editor-panel"
+            aria-label="Script editor"
+            hidden
+          >
+            <div class="script-editor-panel__top">
+              <div class="script-editor-meta">
+                <p class="develop-kicker font-display">Editing</p>
+                <div class="script-editor-filename-row">
+                  <h2
+                    id="script-editor-script-name"
+                    class="script-editor-script-name"
+                  >
+                    —
+                  </h2>
+                  <span
+                    id="script-editor-unsaved-dot"
+                    class="editor-unsaved-dot"
+                    hidden
+                    aria-hidden="true"
+                  ></span>
+                </div>
+                <p
+                  id="script-editor-save-status"
+                  class="script-editor-save-status"
+                  aria-live="polite"
+                ></p>
+              </div>
+            </div>
+
+            <div class="script-editor-body">
+              <textarea
+                id="script-editor-textarea"
+                class="script-editor-textarea"
+                rows="24"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
+                autocorrect="off"
+                placeholder="Select a script to start editing…"
+              ></textarea>
+            </div>
+          </section>
+
+          <section
+            class="sprite-editor-panel"
+            id="sprite-editor-panel"
+            aria-label="Sprite editor"
+            hidden
+          >
           <div class="sprite-editor-panel__top">
             <div class="sprite-editor-sprite-meta">
               <p class="develop-kicker font-display">Editing</p>
@@ -403,7 +543,8 @@
               Save
             </button>
           </div>
-        </section>
+          </section>
+        </main>
       </div>
     </div>
   </div>
