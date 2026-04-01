@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { modalManager } from "./modal-manager.js";
 import { showToast } from "./toast.js";
 
 const SPRITE_W = 32;
@@ -26,6 +27,30 @@ const PALETTE_HEX = [
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function normalizeNameKey(value) {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function sceneSpriteNameExists(kind, name, excludeId) {
+  const key = normalizeNameKey(name);
+  if (!key) return false;
+
+  const inScenes = scenes.some((scene) => {
+    const id = Number(scene.id);
+    if (kind === "scene" && Number(excludeId) === id) return false;
+    return normalizeNameKey(scene.name) === key;
+  });
+  if (inScenes) return true;
+
+  return sprites.some((sprite) => {
+    const id = Number(sprite.id);
+    if (kind === "sprite" && Number(excludeId) === id) return false;
+    return normalizeNameKey(sprite.name) === key;
+  });
 }
 
 function clampInt(n, min, max) {
@@ -116,31 +141,33 @@ let bound = false;
 
 let canvasEl = null;
 let ctx = null;
-let imgData = null; 
+let imgData = null; // ImageData for 32x32 (kept in sync with canvas)
 
 let selectedSpriteId = null;
 let sprites = [];
 
-let spriteServerHasUnpublishedChanges = new Map();
+let spriteServerHasUnpublishedChanges = new Map(); // id -> bool
 let spriteSidebarEls = new Map(); // id -> { itemEl, dotEl }
 
 let history = [];
 let historyIndex = 0;
-let historyBasePixels = null; 
+let historyBasePixels = null; // loaded draft pixels, used for local dirty computation
 
-let pendingEditStartPixels = null;
+let pendingEditStartPixels = null; // Uint8ClampedArray
 let pendingEditHadChanges = false;
 
 let isDrawing = false;
-let currentTool = "pencil"; 
+let currentTool = "pencil"; // pencil | eraser | fill | picker
 
+// Pink is the default selected colour.
 let selectedHex = "#FF004D";
 let selectedOpacity = 1;
 
-const toolButtons = new Map(); 
+const toolButtons = new Map(); // tool -> buttonEl
 
 let spriteLoadToken = 0;
 
+// --- Scenes / Scripts state (sidebar + script editor) ---
 let sidebarMode = "root"; // root | scenes | scripts | sprites
 
 let scenes = [];
@@ -150,10 +177,10 @@ let scripts = [];
 let selectedScriptId = null;
 let selectedScriptSceneId = null;
 
-let scriptServerHasUnpublishedChanges = new Map(); 
-let scriptSidebarEls = new Map(); 
+let scriptServerHasUnpublishedChanges = new Map(); // scriptId -> bool
+let scriptSidebarEls = new Map(); // scriptId -> { itemEl, dotEl, nameEl }
 
-let scriptLastSavedDraftById = new Map(); 
+let scriptLastSavedDraftById = new Map(); // scriptId -> string
 let scriptAutosaveTimer = null;
 let scriptAutosaveToken = 0;
 
@@ -175,6 +202,7 @@ function setSidebarMode(nextMode) {
   const showBack = nextMode !== "root";
   if (backBtn) backBtn.hidden = !showBack;
 
+  // Hide the root chooser (Scenes/Sprites buttons) whenever user drills in.
   if (root) root.hidden = nextMode !== "root";
   if (scenesSec) scenesSec.hidden = nextMode !== "scenes";
   if (scriptsSec) scriptsSec.hidden = nextMode !== "scripts";
@@ -193,6 +221,7 @@ function setSidebarMode(nextMode) {
 }
 
 function setMainPanel(panel) {
+  // panel: "script" | "sprite" | "none"
   setScriptEditorVisible(panel === "script");
   setSpriteEditorVisible(panel === "sprite");
 }
@@ -229,6 +258,7 @@ function setSpriteEditorVisible(visible) {
   if (panel) panel.hidden = !visible;
 }
 
+// Backwards compatibility within this file (older calls).
 function setEditorVisible(visible) {
   setSpriteEditorVisible(visible);
 }
@@ -589,7 +619,7 @@ function bindOnce() {
     });
   }
 
-  // Sidebar selection
+  // Sidebar selection (delegated)
   const listEl = $("sprite-sidebar-list");
   if (listEl) {
     listEl.addEventListener("click", (e) => {
@@ -602,7 +632,7 @@ function bindOnce() {
     });
   }
 
-  // Sidebar navigation 
+  // Sidebar navigation (root/scenes/scripts/sprites)
   const navScenes = $("develop-nav-scenes");
   if (navScenes && navScenes.dataset.bound !== "1") {
     navScenes.dataset.bound = "1";
@@ -618,6 +648,7 @@ function bindOnce() {
     navSprites.dataset.bound = "1";
     navSprites.addEventListener("click", async () => {
       setSidebarMode("sprites");
+      // Sprites list is loaded via refreshGameEditorView; just show the section.
       setMainPanel(selectedSpriteId != null ? "sprite" : "none");
     });
   }
@@ -648,11 +679,88 @@ function bindOnce() {
   if (scenesList && scenesList.dataset.bound !== "1") {
     scenesList.dataset.bound = "1";
     scenesList.addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-scene-id]");
-      if (!btn) return;
-      const sceneId = Number(btn.dataset.sceneId);
+      const actionBtn = e.target.closest("[data-scene-action]");
+      const item = e.target.closest("[data-scene-id]");
+      if (!item) return;
+      const sceneId = Number(item.dataset.sceneId);
       const scene = scenes.find((s) => Number(s.id) === sceneId);
       if (!scene) return;
+
+      if (actionBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const action = actionBtn.dataset.sceneAction;
+        if (action === "rename") {
+          const nextName = await modalManager.prompt({
+            title: "Rename scene",
+            description: "Choose a new scene name.",
+            label: "Scene name",
+            initialValue: String(scene.name ?? ""),
+            confirmLabel: "Save name",
+            validate: (value) => {
+              if (!String(value).trim()) return "Name must not be empty.";
+              if (sceneSpriteNameExists("scene", value, sceneId)) {
+                return "That name is already used by another scene or sprite.";
+              }
+              return null;
+            },
+          });
+          if (nextName == null || nextName === String(scene.name ?? "").trim()) return;
+          try {
+            const updated = await api.patch(
+              `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}`,
+              { name: nextName },
+            );
+            scenes = scenes.map((s) => (Number(s.id) === sceneId ? updated : s));
+            renderScenes(scenes);
+            if (Number(selectedSceneId) === sceneId) {
+              const active = $("develop-active-scene-name");
+              if (active) active.textContent = updated.name ?? "Untitled";
+            }
+            showToast("Scene renamed", "success");
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Rename failed", "error");
+          }
+          return;
+        }
+
+        if (action === "delete") {
+          const ok = await modalManager.confirm({
+            title: "Delete scene?",
+            description:
+              "Delete this scene and all scripts inside it? This action cannot be undone.",
+            confirmLabel: "Delete scene",
+            cancelLabel: "Cancel",
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await api.delete(`/api/develop/games/${gameIdCurrent}/scenes/${sceneId}`);
+            scenes = scenes.filter((s) => Number(s.id) !== sceneId);
+            if (Number(selectedSceneId) === sceneId) {
+              selectedSceneId = null;
+              selectedScriptId = null;
+              selectedScriptSceneId = null;
+              scripts = [];
+              renderScripts([]);
+              const active = $("develop-active-scene-name");
+              if (active) active.textContent = "No scene selected";
+              setSidebarMode("scenes");
+              setMainPanel("none");
+            }
+            renderScenes(scenes);
+            showToast("Scene deleted", "success");
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Delete failed", "error");
+          }
+          return;
+        }
+      }
+
+      const openBtn = e.target.closest("[data-scene-open]");
+      if (!openBtn) return;
+      const btn = e.target.closest("[data-scene-id]");
+      if (!btn) return;
       selectedSceneId = sceneId;
       const nameEl = $("develop-active-scene-name");
       if (nameEl) nameEl.textContent = scene.name != null ? String(scene.name) : "Untitled";
@@ -660,65 +768,92 @@ function bindOnce() {
       await loadScriptsForScene(sceneId);
       setMainPanel("none");
     });
-
-    scenesList.addEventListener("dblclick", (e) => {
-      const btn = e.target.closest("[data-scene-id]");
-      if (!btn) return;
-      const sceneId = Number(btn.dataset.sceneId);
-      const scene = scenes.find((s) => Number(s.id) === sceneId);
-      if (!scene) return;
-      const nameText = btn.querySelector(".develop-editor-item__name-text");
-      if (!nameText) return;
-      beginInlineRename(nameText, String(scene.name ?? ""), async (nextName) => {
-        const updated = await api.patch(
-          `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}`,
-          { name: nextName },
-        );
-        scenes = scenes.map((s) => (Number(s.id) === sceneId ? updated : s));
-        renderScenes(scenes);
-        if (Number(selectedSceneId) === sceneId) {
-          const active = $("develop-active-scene-name");
-          if (active) active.textContent = updated.name ?? "Untitled";
-        }
-        showToast("Renamed", "success");
-      });
-    });
   }
 
   const scriptsList = $("develop-scripts-list");
   if (scriptsList && scriptsList.dataset.bound !== "1") {
     scriptsList.dataset.bound = "1";
     scriptsList.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-script-id]");
-      if (!btn) return;
-      const scriptId = Number(btn.dataset.scriptId);
+      const actionBtn = e.target.closest("[data-script-action]");
+      const item = e.target.closest("[data-script-id]");
+      if (!item) return;
+      const scriptId = Number(item.dataset.scriptId);
       const script = scripts.find((s) => Number(s.id) === scriptId);
       if (!script) return;
-      void openScriptInEditor(selectedSceneId, script);
-    });
 
-    scriptsList.addEventListener("dblclick", (e) => {
+      if (actionBtn) {
+        const action = actionBtn.dataset.scriptAction;
+        if (action === "rename") {
+          void (async () => {
+            const nextName = await modalManager.prompt({
+              title: "Rename script",
+              description: "Choose a new script name.",
+              label: "Script name",
+              initialValue: String(script.name ?? ""),
+              confirmLabel: "Save name",
+            });
+            if (nextName == null || nextName === String(script.name ?? "").trim()) return;
+            try {
+              const sceneId = Number(selectedSceneId);
+              const updated = await api.patch(
+                `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts/${scriptId}`,
+                { name: nextName },
+              );
+              scripts = scripts.map((s) => (Number(s.id) === scriptId ? updated : s));
+              renderScripts(scripts);
+              if (Number(selectedScriptId) === scriptId) {
+                const heading = $("script-editor-script-name");
+                if (heading) heading.textContent = updated.name ?? "Untitled";
+              }
+              showToast("Script renamed", "success");
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : "Rename failed", "error");
+            }
+          })();
+          return;
+        }
+
+        if (action === "delete") {
+          void (async () => {
+            const ok = await modalManager.confirm({
+              title: "Delete script?",
+              description: "Delete this script permanently? This cannot be undone.",
+              confirmLabel: "Delete script",
+              cancelLabel: "Cancel",
+              danger: true,
+            });
+            if (!ok) return;
+            try {
+              const sceneId = Number(selectedSceneId);
+              await api.delete(
+                `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts/${scriptId}`,
+              );
+              scripts = scripts.filter((s) => Number(s.id) !== scriptId);
+              scriptServerHasUnpublishedChanges.delete(scriptId);
+              scriptLastSavedDraftById.delete(scriptId);
+              if (Number(selectedScriptId) === scriptId) {
+                selectedScriptId = null;
+                selectedScriptSceneId = null;
+                setScriptTextareaValue("");
+                setScriptSaveStatus("");
+                setScriptUnsavedDotVisible(false);
+                setMainPanel("none");
+              }
+              renderScripts(scripts);
+              showToast("Script deleted", "success");
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : "Delete failed", "error");
+            }
+          })();
+          return;
+        }
+      }
+
+      const openBtn = e.target.closest("[data-script-open]");
+      if (!openBtn) return;
       const btn = e.target.closest("[data-script-id]");
       if (!btn) return;
-      const scriptId = Number(btn.dataset.scriptId);
-      const script = scripts.find((s) => Number(s.id) === scriptId);
-      if (!script) return;
-      const nameText = btn.querySelector(".develop-editor-item__name-text");
-      if (!nameText) return;
-      const sceneId = Number(selectedSceneId);
-      beginInlineRename(nameText, String(script.name ?? ""), async (nextName) => {
-        const updated = await api.patch(
-          `/api/develop/games/${gameIdCurrent}/scenes/${sceneId}/scripts/${scriptId}`,
-          { name: nextName },
-        );
-        scripts = scripts.map((s) => (Number(s.id) === scriptId ? updated : s));
-        renderScripts(scripts);
-        if (Number(selectedScriptId) === scriptId) {
-          const heading = $("script-editor-script-name");
-          if (heading) heading.textContent = updated.name ?? "Untitled";
-        }
-        showToast("Renamed", "success");
-      });
+      void openScriptInEditor(selectedSceneId, script);
     });
   }
 
@@ -820,6 +955,7 @@ function bindOnce() {
     });
   }
 
+  // Canvas pointer drawing
   canvasEl.addEventListener("pointerdown", (e) => {
     if (!selectedSpriteId) return;
     if (e.button !== 0 && e.pointerType !== "touch") return;
@@ -837,11 +973,13 @@ function bindOnce() {
       return;
     }
 
+    // Pencil/eraser stroke.
     isDrawing = true;
     beginEdit();
     applyDrawingStrokePixel(x, y);
     ctx.putImageData(imgData, 0, 0);
     syncDirtyUiForSpriteId(selectedSpriteId);
+    // Commit happens on pointerup.
     e.preventDefault();
   });
 
@@ -864,6 +1002,7 @@ function bindOnce() {
   canvasEl.addEventListener("pointercancel", endStroke);
   canvasEl.addEventListener("pointerleave", endStroke);
 
+  // Save Draft
   const saveBtn = $("sprite-editor-save-draft");
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
@@ -895,10 +1034,12 @@ function bindOnce() {
           }, "image/png");
         });
 
+        // Treat the current in-memory canvas as the saved draft baseline.
         historyBasePixels = new Uint8ClampedArray(imgData.data);
         setSaveDraftEnabled(false);
         syncDirtyUiForSpriteId(spriteId);
 
+        // Fetch fresh list to update sidebar previews and the dot indicator.
         const list = await api.get(
           `/api/develop/games/${gameIdCurrent}/sprites`,
         );
@@ -939,6 +1080,7 @@ function bindOnce() {
           `/api/develop/games/${gameIdCurrent}/sprites`,
           { name: trimmed },
         );
+        // Reload + open.
         const list = await api.get(
           `/api/develop/games/${gameIdCurrent}/sprites`,
         );
@@ -970,11 +1112,22 @@ function bindOnce() {
       const currentName = String(
         $("sprite-editor-sprite-name")?.textContent ?? "",
       );
-      const name = window.prompt("Rename sprite", currentName || "sprite");
-      if (name == null) return;
-      const trimmed = String(name).trim();
-      if (!trimmed) {
-        showToast("Name must not be empty", "error");
+      const trimmed = await modalManager.prompt({
+        title: "Rename sprite",
+        description: "Choose a new sprite name.",
+        label: "Sprite name",
+        initialValue: currentName || "sprite",
+        confirmLabel: "Save name",
+        validate: (value) => {
+          if (!String(value).trim()) return "Name must not be empty.";
+          if (sceneSpriteNameExists("sprite", value, selectedSpriteId)) {
+            return "That name is already used by another scene or sprite.";
+          }
+          return null;
+        },
+      });
+      if (trimmed == null) return;
+      if (trimmed === String(currentName).trim()) {
         return;
       }
       renameBtn.disabled = true;
@@ -1015,9 +1168,13 @@ function bindOnce() {
   if (deleteBtn) {
     deleteBtn.addEventListener("click", async () => {
       if (!selectedSpriteId || !gameIdCurrent) return;
-      const ok = window.confirm(
-        "Delete this sprite? This cannot be undone.",
-      );
+      const ok = await modalManager.confirm({
+        title: "Delete sprite?",
+        description: "Delete this sprite permanently? This cannot be undone.",
+        confirmLabel: "Delete sprite",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
       if (!ok) return;
       deleteBtn.disabled = true;
       const idle = deleteBtn.textContent;
@@ -1034,6 +1191,7 @@ function bindOnce() {
         setHistoryUi();
         setEditorButtonsEnabled(false);
 
+        // Refresh list and pick next sprite.
         await refreshGameEditorView(gameIdCurrent);
       } catch (e) {
         showToast(
@@ -1089,6 +1247,7 @@ function renderSprites(spritesToRender, preserveSelection) {
       thumb.appendChild(placeholder);
     }
 
+    // Dot indicator reflects backend `has_unpublished_changes` only.
     spriteServerHasUnpublishedChanges.set(id, Boolean(sprite.has_unpublished_changes));
     dot.hidden = !Boolean(sprite.has_unpublished_changes);
 
@@ -1129,11 +1288,15 @@ function renderScenes(scenesToRender) {
 
   for (const scene of scenesToRender) {
     const id = Number(scene.id);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "develop-editor-item";
-    btn.dataset.sceneId = String(id);
-    btn.classList.toggle("is-selected", Number(selectedSceneId) === id);
+    const item = document.createElement("div");
+    item.className = "develop-editor-item";
+    item.dataset.sceneId = String(id);
+    item.classList.toggle("is-selected", Number(selectedSceneId) === id);
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "develop-editor-item__main";
+    openBtn.dataset.sceneOpen = "1";
 
     const nameWrap = document.createElement("span");
     nameWrap.className = "develop-editor-item__name";
@@ -1147,11 +1310,31 @@ function renderScenes(scenesToRender) {
 
     const meta = document.createElement("span");
     meta.className = "develop-editor-item__meta";
+    const actions = document.createElement("span");
+    actions.className = "develop-editor-item__actions";
 
-    btn.appendChild(nameWrap);
-    btn.appendChild(meta);
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.className = "develop-editor-item__icon-btn";
+    renameBtn.dataset.sceneAction = "rename";
+    renameBtn.setAttribute("aria-label", "Rename scene");
+    renameBtn.textContent = "✎";
 
-    listEl.appendChild(btn);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "develop-editor-item__icon-btn develop-editor-item__icon-btn--danger";
+    deleteBtn.dataset.sceneAction = "delete";
+    deleteBtn.setAttribute("aria-label", "Delete scene");
+    deleteBtn.textContent = "🗑";
+
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+    meta.appendChild(actions);
+
+    openBtn.appendChild(nameWrap);
+    item.appendChild(openBtn);
+    item.appendChild(meta);
+    listEl.appendChild(item);
   }
 }
 
@@ -1169,11 +1352,15 @@ function renderScripts(scriptsToRender) {
   for (const script of scriptsToRender) {
     const id = Number(script.id);
 
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "develop-editor-item";
-    btn.dataset.scriptId = String(id);
-    btn.classList.toggle("is-selected", Number(selectedScriptId) === id);
+    const item = document.createElement("div");
+    item.className = "develop-editor-item";
+    item.dataset.scriptId = String(id);
+    item.classList.toggle("is-selected", Number(selectedScriptId) === id);
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "develop-editor-item__main";
+    openBtn.dataset.scriptOpen = "1";
 
     const nameWrap = document.createElement("span");
     nameWrap.className = "develop-editor-item__name";
@@ -1192,13 +1379,34 @@ function renderScripts(scriptsToRender) {
     const meta = document.createElement("span");
     meta.className = "develop-editor-item__meta";
     meta.appendChild(dot);
+    const actions = document.createElement("span");
+    actions.className = "develop-editor-item__actions";
 
-    btn.appendChild(nameWrap);
-    btn.appendChild(meta);
-    listEl.appendChild(btn);
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.className = "develop-editor-item__icon-btn";
+    renameBtn.dataset.scriptAction = "rename";
+    renameBtn.setAttribute("aria-label", "Rename script");
+    renameBtn.textContent = "✎";
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "develop-editor-item__icon-btn develop-editor-item__icon-btn--danger";
+    deleteBtn.dataset.scriptAction = "delete";
+    deleteBtn.setAttribute("aria-label", "Delete script");
+    deleteBtn.textContent = "🗑";
+
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+    meta.appendChild(actions);
+
+    openBtn.appendChild(nameWrap);
+    item.appendChild(openBtn);
+    item.appendChild(meta);
+    listEl.appendChild(item);
 
     scriptServerHasUnpublishedChanges.set(id, Boolean(script.has_unpublished_changes));
-    scriptSidebarEls.set(id, { itemEl: btn, dotEl: dot, nameEl: nameText });
+    scriptSidebarEls.set(id, { itemEl: item, dotEl: dot, nameEl: nameText });
 
     if (!scriptLastSavedDraftById.has(id)) {
       scriptLastSavedDraftById.set(id, script.draft_content != null ? String(script.draft_content) : "");
@@ -1248,6 +1456,7 @@ function syncScriptDirtyUi() {
 
 async function openScriptInEditor(sceneId, script) {
   if (!script || script.id == null) return;
+  // Cancel any pending autosave for previously open script.
   if (scriptAutosaveTimer) {
     clearTimeout(scriptAutosaveTimer);
     scriptAutosaveTimer = null;
@@ -1257,6 +1466,7 @@ async function openScriptInEditor(sceneId, script) {
   selectedScriptId = Number(script.id);
   selectedScriptSceneId = Number(sceneId);
 
+  // Selection styling
   for (const [sid, els] of scriptSidebarEls.entries()) {
     els?.itemEl?.classList.toggle("is-selected", Number(sid) === Number(selectedScriptId));
   }
@@ -1312,6 +1522,7 @@ function scheduleScriptAutosave() {
       setScriptSaveStatus("Draft saved");
       syncScriptDirtyUi();
 
+      // Update the unpublished changes dot from server response.
       scriptServerHasUnpublishedChanges.set(
         scriptId,
         Boolean(updated?.has_unpublished_changes),
@@ -1329,46 +1540,6 @@ function scheduleScriptAutosave() {
   }, 1000);
 }
 
-function beginInlineRename(el, currentValue, onCommit) {
-  if (!el) return;
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "develop-editor-item__input";
-  input.value = currentValue || "";
-
-  const parent = el.parentElement;
-  if (!parent) return;
-  parent.replaceChild(input, el);
-  input.focus();
-  input.select();
-
-  let done = false;
-  const finish = async (commit) => {
-    if (done) return;
-    done = true;
-    const next = input.value.trim();
-    parent.replaceChild(el, input);
-    if (!commit) return;
-    if (!next) {
-      showToast("Name must not be empty", "error");
-      return;
-    }
-    if (next === currentValue) return;
-    await onCommit(next);
-  };
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      void finish(true);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      void finish(false);
-    }
-  });
-  input.addEventListener("blur", () => void finish(true));
-}
-
 export function syncGameEditorGameId(gameId) {
   gameIdCurrent = gameId != null ? String(gameId) : null;
 }
@@ -1379,6 +1550,7 @@ export async function refreshGameEditorView(gameId) {
 
   if (!gameIdCurrent) return;
 
+  // Reset view on entry.
   setSidebarMode("root");
   setMainPanel("none");
   setScriptTextareaValue("");
@@ -1409,8 +1581,10 @@ export async function refreshGameEditorView(gameId) {
       renderSprites([], false);
       setEditorButtonsEnabled(false);
       setEditorVisible(false);
-
+      // Sprites are optional; scenes/scripts can still be edited.
+      // Keep going so scenes/scripts can still load on demand.
     } else {
+      // Preserve selection when possible.
       const ids = new Set(sprites.map((s) => Number(s.id)));
       const keep = selectedSpriteId != null && ids.has(Number(selectedSpriteId));
       renderSprites(sprites, keep);

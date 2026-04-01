@@ -1,5 +1,6 @@
 import { api } from "./api.js";
 import { notifyGamePublished } from "./develop-sync.js";
+import { modalManager } from "./modal-manager.js";
 import { showToast } from "./toast.js";
 
 let loadToken = 0;
@@ -153,9 +154,14 @@ function bindOnce() {
     delBtn.addEventListener("click", async () => {
       const gid = form.dataset.gameId;
       if (!gid) return;
-      const ok = window.confirm(
-        "Delete this game permanently? This cannot be undone."
-      );
+      const ok = await modalManager.confirm({
+        title: "Delete game?",
+        description:
+          "Delete this game permanently? This removes scenes, scripts, sprites, and cannot be undone.",
+        confirmLabel: "Delete game",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
       if (!ok) return;
 
       const idle = delBtn.textContent;

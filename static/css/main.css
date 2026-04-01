@@ -1571,6 +1571,7 @@ body.auth-modal-is-open {
   height: 1.05rem;
 }
 
+/* --- Develop editor layout (Scenes / Scripts / Sprites) --- */
 .develop-editor-layout {
   display: grid;
   grid-template-columns: min(22rem, 100%) 1fr;
@@ -1712,6 +1713,57 @@ body.auth-modal-is-open {
   gap: 0.4rem;
 }
 
+.develop-editor-item__main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.develop-editor-item__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.develop-editor-item__icon-btn {
+  width: 1.85rem;
+  height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 229, 204, 0.3);
+  background: rgba(0, 229, 204, 0.08);
+  color: var(--color-aqua);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.develop-editor-item__icon-btn:hover {
+  background: rgba(0, 229, 204, 0.16);
+  border-color: rgba(0, 229, 204, 0.5);
+}
+
+.develop-editor-item__icon-btn--danger {
+  color: #ff8fa9;
+  border-color: rgba(255, 119, 168, 0.35);
+  background: rgba(255, 119, 168, 0.09);
+}
+
+.develop-editor-item__icon-btn--danger:hover {
+  background: rgba(255, 119, 168, 0.18);
+  border-color: rgba(255, 119, 168, 0.55);
+}
+
 .editor-unpublished-dot {
   width: 0.55rem;
   height: 0.55rem;
@@ -1755,6 +1807,7 @@ body.auth-modal-is-open {
   min-width: 0;
 }
 
+/* --- Script editor panel --- */
 .script-editor-panel {
   background: var(--surface);
   border: 2px solid rgba(0, 229, 204, 0.2);
@@ -1810,4 +1863,175 @@ body.auth-modal-is-open {
 .script-editor-textarea:focus {
   outline: 2px solid var(--color-aqua);
   outline-offset: 2px;
+}
+
+body.system-modal-is-open {
+  overflow: hidden;
+}
+
+.system-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0.3s;
+}
+
+.system-modal-root.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 0.3s ease,
+    visibility 0s;
+}
+
+.system-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  cursor: pointer;
+  background: rgba(14, 14, 20, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.system-modal-root.is-open .system-modal__backdrop {
+  opacity: 1;
+}
+
+[data-theme="light"] .system-modal__backdrop {
+  background: rgba(14, 14, 20, 0.4);
+}
+
+.system-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 40rem);
+  max-height: min(90vh, calc(100dvh - 2.5rem));
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+.system-modal-root.is-open .system-modal__dialog {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.system-modal__card {
+  position: relative;
+  background: var(--surface);
+  border: 2px solid var(--color-aqua);
+  border-radius: var(--radius-button);
+  padding: 1.25rem 1.2rem 1rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  overflow: auto;
+  max-height: inherit;
+}
+
+.system-modal__close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  width: 2.3rem;
+  height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 229, 204, 0.2);
+}
+
+.system-modal__title {
+  margin: 0 2.6rem 0.3rem 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.system-modal__description {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  opacity: 0.95;
+}
+
+.system-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.system-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.system-modal__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.system-modal__input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 2px solid rgba(0, 229, 204, 0.35);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.system-modal__input:focus {
+  outline: 2px solid var(--color-aqua);
+  outline-offset: 2px;
+}
+
+.system-modal__error {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-pink);
+}
+
+.system-modal__error--global {
+  margin-top: -0.1rem;
+}
+
+.system-modal__footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.system-modal__button {
+  min-width: 7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .system-modal-root,
+  .system-modal__backdrop,
+  .system-modal__dialog {
+    transition: none;
+  }
 }
