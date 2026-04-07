@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { modalManager } from "./modal-manager.js";
 import { showToast } from "./toast.js";
+import { run as runPixelScript, stop as stopPixelScript } from "./pixelscript/runtime.js";
 
 const SPRITE_W = 32;
 const SPRITE_H = 32;
@@ -183,6 +184,7 @@ let scriptSidebarEls = new Map(); // scriptId -> { itemEl, dotEl, nameEl }
 let scriptLastSavedDraftById = new Map(); // scriptId -> string
 let scriptAutosaveTimer = null;
 let scriptAutosaveToken = 0;
+let runtimeRunning = false;
 
 function setScriptEditorVisible(visible) {
   const panel = $("script-editor-panel");
@@ -244,6 +246,120 @@ function getScriptTextareaValue() {
 function setScriptTextareaValue(value) {
   const ta = $("script-editor-textarea");
   if (ta) ta.value = value != null ? String(value) : "";
+}
+
+function updateRunButtonsUi() {
+  const stopBtn = $("editor-stop-button");
+  const runBtn = $("editor-run-button");
+  if (stopBtn) stopBtn.disabled = !runtimeRunning;
+  if (runBtn) runBtn.disabled = runtimeRunning;
+}
+
+function updateScriptInMemoryDraft(scriptId, draftValue) {
+  const id = Number(scriptId);
+  scripts = scripts.map((s) =>
+    Number(s.id) === id
+      ? {
+          ...s,
+          draft_content: String(draftValue ?? ""),
+        }
+      : s,
+  );
+}
+
+async function ensureScenesLoaded() {
+  if (Array.isArray(scenes) && scenes.length) return;
+  await loadScenes();
+}
+
+async function ensureScriptsLoadedForScene(sceneId) {
+  const sid = Number(sceneId);
+  if (Number(selectedSceneId) !== sid || !Array.isArray(scripts) || !scripts.length) {
+    await loadScriptsForScene(sid);
+  }
+}
+
+async function getDraftScriptsForRun() {
+  await ensureScenesLoaded();
+  if (!scenes.length) throw new Error("No scenes available to run.");
+
+  const sceneId = selectedSceneId != null ? Number(selectedSceneId) : Number(scenes[0].id);
+  if (!Number.isFinite(sceneId)) throw new Error("Invalid scene selected for run.");
+
+  await ensureScriptsLoadedForScene(sceneId);
+  const scriptSources = (Array.isArray(scripts) ? scripts : []).map((script) => {
+    const sid = Number(script.id);
+    if (selectedScriptId != null && sid === Number(selectedScriptId)) {
+      return getScriptTextareaValue();
+    }
+    return script?.draft_content != null ? String(script.draft_content) : "";
+  });
+
+  return scriptSources;
+}
+
+function buildSpriteLibraryForRun() {
+  const lib = Object.create(null);
+  for (const s of sprites) {
+    const key = normalizeNameKey(s.name);
+    if (!key) continue;
+    const url = s.draft_image_url != null ? String(s.draft_image_url).trim() : "";
+    if (url) lib[key] = url;
+  }
+  const spriteCanvas = $("sprite-editor-canvas");
+  if (
+    computeLocalDirty() &&
+    selectedSpriteId != null &&
+    spriteCanvas instanceof HTMLCanvasElement
+  ) {
+    const selected = sprites.find((sp) => Number(sp.id) === Number(selectedSpriteId));
+    if (selected) {
+      const key = normalizeNameKey(selected.name);
+      if (key) {
+        try {
+          lib[key] = spriteCanvas.toDataURL("image/png");
+        } catch {
+          /* keep server URL in lib if present */
+        }
+      }
+    }
+  }
+  return lib;
+}
+
+async function runEditorScriptsOnCanvas(canvasEl) {
+  if (!(canvasEl instanceof HTMLCanvasElement)) {
+    throw new Error("Preview canvas is missing.");
+  }
+  const draftScripts = await getDraftScriptsForRun();
+  await runPixelScript(draftScripts, canvasEl, {
+    editorMode: true,
+    spriteLibrary: buildSpriteLibraryForRun(),
+  });
+  runtimeRunning = true;
+  updateRunButtonsUi();
+}
+
+function stopEditorScripts() {
+  stopPixelScript();
+  runtimeRunning = false;
+  updateRunButtonsUi();
+}
+
+function openPlayModal() {
+  const root = $("editor-play-modal-root");
+  if (!root) return;
+  root.classList.add("is-open");
+  root.setAttribute("aria-hidden", "false");
+  document.body.classList.add("editor-play-modal-is-open");
+}
+
+function closePlayModal() {
+  const root = $("editor-play-modal-root");
+  if (!root) return;
+  root.classList.remove("is-open");
+  root.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("editor-play-modal-is-open");
 }
 
 function setHistoryUi() {
@@ -929,9 +1045,58 @@ function bindOnce() {
   if (ta && ta.dataset.bound !== "1") {
     ta.dataset.bound = "1";
     ta.addEventListener("input", () => {
+      if (selectedScriptId != null) {
+        updateScriptInMemoryDraft(selectedScriptId, getScriptTextareaValue());
+      }
       scheduleScriptAutosave();
     });
   }
+
+  const runBtn = $("editor-run-button");
+  if (runBtn && runBtn.dataset.bound !== "1") {
+    runBtn.dataset.bound = "1";
+    runBtn.addEventListener("click", async () => {
+      try {
+        const canvas = $("editor-preview-canvas");
+        await runEditorScriptsOnCanvas(canvas);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Run failed", "error");
+      }
+    });
+  }
+
+  const stopBtn = $("editor-stop-button");
+  if (stopBtn && stopBtn.dataset.bound !== "1") {
+    stopBtn.dataset.bound = "1";
+    stopBtn.addEventListener("click", () => {
+      stopEditorScripts();
+    });
+  }
+
+  const playBtn = $("editor-play-button");
+  if (playBtn && playBtn.dataset.bound !== "1") {
+    playBtn.dataset.bound = "1";
+    playBtn.addEventListener("click", async () => {
+      openPlayModal();
+      try {
+        const canvas = $("editor-play-modal-canvas");
+        await runEditorScriptsOnCanvas(canvas);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Playtest failed", "error");
+      }
+    });
+  }
+
+  document.querySelectorAll("[data-editor-play-dismiss]").forEach((el) => {
+    if (el.dataset.bound === "1") return;
+    el.dataset.bound = "1";
+    el.addEventListener("click", () => {
+      stopEditorScripts();
+      closePlayModal();
+    });
+  });
+
+  updateRunButtonsUi();
 
   // Undo/Redo
   const undoBtn = $("sprite-editor-undo");
@@ -1547,6 +1712,8 @@ export function syncGameEditorGameId(gameId) {
 export async function refreshGameEditorView(gameId) {
   gameIdCurrent = gameId != null ? String(gameId) : gameIdCurrent;
   bindOnce();
+  stopEditorScripts();
+  closePlayModal();
 
   if (!gameIdCurrent) return;
 

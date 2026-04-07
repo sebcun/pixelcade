@@ -182,6 +182,21 @@
           </p>
         </div>
       </header>
+      <div class="develop-editor-top">
+        <div class="develop-editor-top__main">
+          <div class="develop-editor-top__actions">
+            <button type="button" class="btn btn--nav-primary" id="editor-play-button">
+              PLAY
+            </button>
+            <button type="button" class="btn btn--nav-secondary" id="editor-run-button">
+              Run
+            </button>
+            <button type="button" class="btn btn--nav-secondary" id="editor-stop-button" disabled>
+              Stop
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="develop-editor-layout" id="develop-editor-layout">
         <aside class="develop-editor-sidebar" aria-label="Editor navigation">
@@ -545,6 +560,19 @@
           </div>
           </section>
         </main>
+        <aside class="develop-editor-preview" aria-label="Game preview">
+          <div class="develop-editor-preview__header">
+            <p class="develop-kicker font-display">Preview</p>
+          </div>
+          <div class="develop-editor-preview__canvas-wrap">
+            <canvas
+              id="editor-preview-canvas"
+              class="develop-editor-preview__canvas"
+              width="480"
+              height="270"
+            ></canvas>
+          </div>
+        </aside>
       </div>
     </div>
   </div>
@@ -560,6 +588,25 @@
   </div>
 
   <div id="system-modal-root" class="system-modal-root" aria-hidden="true"></div>
+  <div id="editor-play-modal-root" class="editor-play-modal-root" aria-hidden="true">
+    <div class="editor-play-modal__backdrop" data-editor-play-dismiss aria-hidden="true"></div>
+    <div class="editor-play-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="editor-play-title">
+      <section class="editor-play-modal__card">
+        <button type="button" class="editor-play-modal__close" data-editor-play-dismiss aria-label="Close dialog">
+          ×
+        </button>
+        <h2 id="editor-play-title" class="editor-play-modal__title font-display">Playtest</h2>
+        <div class="editor-play-modal__canvas-wrap">
+          <canvas
+            id="editor-play-modal-canvas"
+            class="editor-play-modal__canvas"
+            width="480"
+            height="270"
+          ></canvas>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <div id="auth-modal-root" class="auth-modal-root" aria-hidden="true">
     <div

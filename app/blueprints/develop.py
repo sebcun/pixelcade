@@ -275,6 +275,7 @@ def api_create_game():
     db.session.add(game)
     db.session.flush()
 
+    # New games always start with one default scene and one default script.
     scene = Scene(game_id=game.id, name="Scene 1", order_index=0)
     db.session.add(scene)
     db.session.flush()
@@ -557,6 +558,7 @@ def api_create_scene(game_id: int):
     db.session.add(scene)
     db.session.flush()
 
+    # Every new scene gets a starter untitled script.
     script = Script(
         scene_id=scene.id,
         name="untitled",

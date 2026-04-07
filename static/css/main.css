@@ -2035,3 +2035,123 @@ body.system-modal-is-open {
     transition: none;
   }
 }
+
+.develop-editor-top__actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.develop-editor-preview {
+  background: var(--surface);
+  border: 2px solid rgba(0, 229, 204, 0.2);
+  border-radius: 4px;
+  padding: 0.85rem;
+}
+
+.develop-editor-preview__header {
+  margin-bottom: 0.65rem;
+}
+
+.develop-editor-preview__canvas-wrap {
+  width: 100%;
+  max-width: 480px;
+  border: 2px solid rgba(0, 229, 204, 0.28);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.develop-editor-preview__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #0e0e14;
+}
+
+@media (min-width: 1150px) {
+  .develop-editor-layout {
+    grid-template-columns: min(22rem, 100%) minmax(0, 1fr) min(30rem, 100%);
+  }
+}
+
+body.editor-play-modal-is-open {
+  overflow: hidden;
+}
+
+.editor-play-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 215;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    visibility 0s linear 0.25s;
+}
+
+.editor-play-modal-root.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 0.25s ease,
+    visibility 0s linear 0s;
+}
+
+.editor-play-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 16, 0.7);
+}
+
+.editor-play-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 760px);
+}
+
+.editor-play-modal__card {
+  background: var(--surface);
+  border: 2px solid rgba(0, 229, 204, 0.3);
+  border-radius: 4px;
+  padding: 0.9rem;
+  position: relative;
+}
+
+.editor-play-modal__close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.45rem;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.editor-play-modal__title {
+  margin: 0 2rem 0.8rem 0;
+}
+
+.editor-play-modal__canvas-wrap {
+  width: 100%;
+  border: 2px solid rgba(0, 229, 204, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.editor-play-modal__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #0e0e14;
+}
