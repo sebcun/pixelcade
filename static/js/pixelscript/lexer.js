@@ -21,6 +21,29 @@ const KEYWORDS = new Set([
   "medium",
   "large",
   "xp",
+  "if",
+  "else",
+  "while",
+  "loop",
+  "break",
+  "continue",
+  "stop",
+  "key",
+  "press",
+  "hold",
+  "release",
+  "touches",
+  "wall",
+  "spin",
+  "opacity",
+  "scale",
+  "rotation",
+  "visible",
+  "true",
+  "false",
+  "and",
+  "or",
+  "not",
 ]);
 
 function isDigit(ch) {
@@ -75,6 +98,30 @@ function readString(text, start) {
     i += 1;
   }
   throw new Error("Unterminated string literal");
+}
+
+function readOperator(raw, i, lineNumber) {
+  const ch = raw[i];
+  const next = raw[i + 1];
+  if (ch === "=" && next === "=") {
+    return { value: "==", end: i + 2 };
+  }
+  if (ch === "!" && next === "=") {
+    return { value: "!=", end: i + 2 };
+  }
+  if (ch === "<" && next === "=") {
+    return { value: "<=", end: i + 2 };
+  }
+  if (ch === ">" && next === "=") {
+    return { value: ">=", end: i + 2 };
+  }
+  if (ch === "<" || ch === ">" || ch === ".") {
+    return { value: ch, end: i + 1 };
+  }
+  if (",:+-*/()".includes(ch)) {
+    return { value: ch, end: i + 1 };
+  }
+  throw new Error(`Unexpected character "${ch}" at line ${lineNumber}, column ${i + 1}`);
 }
 
 export function tokenize(source) {
@@ -142,9 +189,10 @@ export function tokenize(source) {
         i = end;
         continue;
       }
-      if (",:+-*/()".includes(ch)) {
-        tokens.push(makeToken("OPERATOR", ch, lineNumber, i + 1));
-        i += 1;
+      if ("=!<>.,:+-*/()".includes(ch)) {
+        const { value, end } = readOperator(raw, i, lineNumber);
+        tokens.push(makeToken("OPERATOR", value, lineNumber, i + 1));
+        i = end;
         continue;
       }
       throw new Error(`Unexpected character "${ch}" at line ${lineNumber}, column ${i + 1}`);
