@@ -1,6 +1,7 @@
 import { tokenize } from "./lexer.js";
 
 const SPRITE_PROP_NAMES = new Set(["x", "y", "opacity", "scale", "rotation", "visible"]);
+const TEXT_PROP_NAMES = new Set(["text", "colour", "color", "size"]);
 
 class Parser {
   constructor(tokens) {
@@ -246,6 +247,21 @@ class Parser {
 
   parseSetStatement() {
     this.expect("KEYWORD", "set");
+    if (
+      this.is("KEYWORD", "background") ||
+      (this.is("IDENTIFIER") && String(this.peek().value).toLowerCase() === "background")
+    ) {
+      this.advance();
+      this.expect("KEYWORD", "to");
+      if (this.is("KEYWORD", "image")) {
+        this.advance();
+        const imageName = this.expect("STRING");
+        return { type: "SetBackgroundImage", imageName: String(imageName.value) };
+      }
+      const colorExpr = this.parseExpression();
+      return { type: "SetBackgroundColor", color: colorExpr };
+    }
+
     const first = this.expect("IDENTIFIER");
     const firstName = String(first.value);
     if (this.is("KEYWORD", "to")) {
@@ -253,6 +269,26 @@ class Parser {
       const value = this.parseExpression();
       return { type: "SetStatement", variable: firstName, value };
     }
+
+    let textProp = null;
+    if (this.is("IDENTIFIER")) {
+      const id = String(this.advance().value).toLowerCase();
+      if (TEXT_PROP_NAMES.has(id)) textProp = id === "color" ? "colour" : id;
+    } else if (
+      this.is("KEYWORD", "text") ||
+      this.is("KEYWORD", "colour") ||
+      this.is("KEYWORD", "color") ||
+      this.is("KEYWORD", "size")
+    ) {
+      const kw = String(this.advance().value).toLowerCase();
+      textProp = kw === "color" ? "colour" : kw;
+    }
+    if (textProp) {
+      this.expect("KEYWORD", "to");
+      const value = this.parseExpression();
+      return { type: "SetTextProperty", label: firstName, property: textProp, value };
+    }
+
     let propName = null;
     if (this.is("IDENTIFIER")) {
       propName = String(this.advance().value).toLowerCase();
@@ -268,7 +304,7 @@ class Parser {
     }
     if (!propName || !SPRITE_PROP_NAMES.has(propName)) {
       throw new Error(
-        `Expected "to" or sprite property (x, y, opacity, scale, rotation, visible) at line ${this.peek()?.line ?? "?"}`,
+        `Expected "to", text property (text, colour, size), or sprite property (x, y, opacity, scale, rotation, visible) at line ${this.peek()?.line ?? "?"}`,
       );
     }
     this.expect("KEYWORD", "to");
@@ -445,7 +481,103 @@ class Parser {
       this.advance();
       return { type: "StopGameStatement" };
     }
-    throw new Error(`Expected "loop" or "game" after stop at line ${this.peek()?.line ?? "?"}`);
+    if (this.is("KEYWORD", "sound")) {
+      this.advance();
+      const name = this.expect("STRING");
+      return { type: "StopSoundStatement", soundName: String(name.value) };
+    }
+    throw new Error(`Expected "loop", "game", or "sound" after stop at line ${this.peek()?.line ?? "?"}`);
+  }
+
+  parseAddText() {
+    this.expect("KEYWORD", "add");
+    this.expect("KEYWORD", "text");
+    const strTok = this.expect("STRING");
+    this.expect("KEYWORD", "as");
+    const variable = this.expect("IDENTIFIER");
+    this.expect("KEYWORD", "at");
+    const { x, y } = this.parseCoordPair();
+    return {
+      type: "AddText",
+      text: String(strTok.value),
+      variable: String(variable.value),
+      x,
+      y,
+    };
+  }
+
+  parseEffectOptions() {
+    let size = null;
+    let colour = null;
+    let amount = null;
+    while (true) {
+      if (this.is("KEYWORD", "size")) {
+        this.advance();
+        size = this.parseExpression();
+        continue;
+      }
+      if (this.is("KEYWORD", "colour") || this.is("KEYWORD", "color")) {
+        this.advance();
+        colour = this.parseExpression();
+        continue;
+      }
+      if (this.is("KEYWORD", "amount")) {
+        this.advance();
+        amount = this.parseExpression();
+        continue;
+      }
+      break;
+    }
+    return { size, colour, amount };
+  }
+
+  parsePlay() {
+    this.expect("KEYWORD", "play");
+    if (this.is("KEYWORD", "effect")) {
+      this.advance();
+      const effectName = this.expect("STRING");
+      this.expect("KEYWORD", "at");
+      const { x, y } = this.parseCoordPair();
+      const { size, colour, amount } = this.parseEffectOptions();
+      return {
+        type: "PlayEffectStatement",
+        effectName: String(effectName.value),
+        x,
+        y,
+        size,
+        colour,
+        amount,
+      };
+    }
+    if (this.is("KEYWORD", "sound")) {
+      this.advance();
+      const soundName = this.expect("STRING");
+      let volume = null;
+      if (this.is("KEYWORD", "volume")) {
+        this.advance();
+        volume = this.parseExpression();
+      }
+      return {
+        type: "PlaySoundStatement",
+        soundName: String(soundName.value),
+        volume,
+      };
+    }
+    throw new Error(`Expected "effect" or "sound" after play at line ${this.peek()?.line ?? "?"}`);
+  }
+
+  parseGoToScene() {
+    this.expect("KEYWORD", "go");
+    this.expect("KEYWORD", "to");
+    this.expect("KEYWORD", "scene");
+    const sceneName = this.expect("STRING");
+    return { type: "GoToSceneStatement", sceneName: String(sceneName.value) };
+  }
+
+  parseRestartScene() {
+    this.expect("KEYWORD", "restart");
+    this.expect("KEYWORD", "scene");
+    return { type: "RestartSceneStatement" };
   }
 
   parseStatement() {
@@ -476,6 +608,10 @@ class Parser {
     if (this.is("KEYWORD", "repeat")) return this.parseRepeat();
     if (this.is("KEYWORD", "award")) return this.parseAward();
     if (this.is("KEYWORD", "spin")) return this.parseSpin();
+    if (this.is("KEYWORD", "add")) return this.parseAddText();
+    if (this.is("KEYWORD", "play")) return this.parsePlay();
+    if (this.is("KEYWORD", "go")) return this.parseGoToScene();
+    if (this.is("KEYWORD", "restart")) return this.parseRestartScene();
     const token = this.peek();
     throw new Error(`Unknown command "${token?.value ?? "EOF"}" at line ${token?.line ?? "?"}`);
   }

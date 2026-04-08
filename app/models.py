@@ -170,6 +170,7 @@ class XPLog(db.Model):
         db.Integer, db.ForeignKey("games.id"), nullable=False, index=True
     )
     amount = db.Column(db.Integer, nullable=False)
+    tier = db.Column(db.String(16), nullable=True, index=True)
     awarded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 

@@ -1,3 +1,4 @@
+import { createEffectEmitter } from "./effects.js";
 import { parse } from "./parser.js";
 
 const DEFAULT_WIDTH = 480;
@@ -56,11 +57,31 @@ function yieldFrame() {
   return new Promise((requestAnimationFrame));
 }
 
+function readMetaCsrf() {
+  return (
+    typeof document !== "undefined"
+      ? document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? ""
+      : ""
+  );
+}
+
 class PixelRuntime {
-  constructor(canvas, { editorMode = false, spriteLibrary = {} } = {}) {
+  constructor(
+    canvas,
+    {
+      editorMode = false,
+      spriteLibrary = {},
+      gameId = null,
+      onGoToScene = null,
+      onRestartScene = null,
+    } = {},
+  ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.editorMode = editorMode;
+    this.gameId = gameId != null ? String(gameId) : null;
+    this.onGoToScene = typeof onGoToScene === "function" ? onGoToScene : null;
+    this.onRestartScene = typeof onRestartScene === "function" ? onRestartScene : null;
     this.spriteLibrary =
       spriteLibrary && typeof spriteLibrary === "object" ? spriteLibrary : {};
     /** @type {Map<string, HTMLImageElement>} */
@@ -71,7 +92,18 @@ class PixelRuntime {
     this.state = {
       variables: new Map(),
       sprites: new Map(),
+      texts: new Map(),
     };
+    this.background = { kind: "color", color: "#0E0E14", image: null };
+    /** @type {ReturnType<createEffectEmitter>[]} */
+    this.effectEmitters = [];
+    this._lastTickMs =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    this._audioCtx = null;
+    /** @type {Map<string, AudioBuffer>} */
+    this._soundBuffers = new Map();
+    /** @type {Map<string, AudioBufferSourceNode[]>} */
+    this._soundSources = new Map();
     /** @type {{ mode: string, keyName: string, body: object[] }[]} */
     this.keyPressHandlers = [];
     this.keyReleaseHandlers = [];
@@ -241,6 +273,152 @@ class PixelRuntime {
     this.keysDown.clear();
   }
 
+  _stopAllSounds() {
+    for (const list of this._soundSources.values()) {
+      for (const src of list) {
+        try {
+          src.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    this._soundSources.clear();
+  }
+
+  async _ensureAudioCtx() {
+    if (typeof window === "undefined") return null;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!this._audioCtx) {
+      this._audioCtx = new AC();
+    }
+    if (this._audioCtx.state === "suspended") {
+      try {
+        await this._audioCtx.resume();
+      } catch {
+        /* ignore */
+      }
+    }
+    return this._audioCtx;
+  }
+
+  async _loadSoundBuffer(rawName) {
+    const ctx = await this._ensureAudioCtx();
+    if (!ctx) return null;
+    const key = normalizeSpriteKey(rawName);
+    if (!key) return null;
+    if (this._soundBuffers.has(key)) return this._soundBuffers.get(key);
+    const safe = String(rawName ?? "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const bases = [`/static/sounds/${encodeURIComponent(safe)}`];
+    const exts = [".mp3", ".ogg", ".wav"];
+    for (const base of bases) {
+      for (const ext of exts) {
+        try {
+          const res = await fetch(base + ext, { credentials: "same-origin" });
+          if (!res.ok) continue;
+          const ab = await res.arrayBuffer();
+          const buf = await ctx.decodeAudioData(ab.slice(0));
+          this._soundBuffers.set(key, buf);
+          return buf;
+        } catch {
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  async _playSound(rawName, volumeExpr) {
+    const ctx = await this._ensureAudioCtx();
+    if (!ctx) return;
+    const buf = await this._loadSoundBuffer(rawName);
+    if (!buf) return;
+    let gain = volumeExpr != null ? Number(this.evalExpr(volumeExpr)) : 1;
+    if (!Number.isFinite(gain)) gain = 1;
+    gain = Math.max(0, Math.min(2, gain));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const key = normalizeSpriteKey(rawName);
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g);
+    g.connect(ctx.destination);
+    if (!this._soundSources.has(key)) this._soundSources.set(key, []);
+    this._soundSources.get(key).push(src);
+    src.onended = () => {
+      const list = this._soundSources.get(key);
+      if (!list) return;
+      const i = list.indexOf(src);
+      if (i >= 0) list.splice(i, 1);
+    };
+    try {
+      src.start(0);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  _stopSoundNamed(rawName) {
+    const key = normalizeSpriteKey(rawName);
+    const list = this._soundSources.get(key);
+    if (!list) return;
+    for (const src of list) {
+      try {
+        src.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    this._soundSources.delete(key);
+  }
+
+  async _postAwardXp(tier) {
+    if (this.editorMode || !this.gameId) return;
+    const t = String(tier || "").toLowerCase();
+    if (t !== "small" && t !== "medium" && t !== "large") return;
+    const token = readMetaCsrf();
+    try {
+      await fetch(`/api/games/${encodeURIComponent(this.gameId)}/xp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "X-CSRFToken": token, "X-CSRF-Token": token } : {}),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ tier: t }),
+      });
+    } catch {
+      /* no-op */
+    }
+  }
+
+  _colourFromExpr(node) {
+    const v = this.evalExpr(node);
+    if (typeof v === "string" && v.trim()) return v.trim();
+    return "#FFFFFF";
+  }
+
+  async _setBackgroundImageByName(imageName) {
+    const sheetKey = normalizeSpriteKey(imageName);
+    let img = sheetKey ? this.spriteImages.get(sheetKey) ?? null : null;
+    if ((!img || !img.naturalWidth) && sheetKey) {
+      const url = String(this.spriteLibrary[sheetKey] ?? "").trim();
+      if (url) {
+        img = new Image();
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          img.src = url;
+        });
+        if (img.naturalWidth) this.spriteImages.set(sheetKey, img);
+      }
+    }
+    if (img && img.naturalWidth) {
+      this.background = { kind: "image", color: this.background.color, image: img };
+    }
+  }
+
   async safeExecBlock(body) {
     try {
       await this.execBlock(body || []);
@@ -278,10 +456,46 @@ class PixelRuntime {
     this.canvas.tabIndex = Math.max(this.canvas.tabIndex ?? 0, 0);
   }
 
+  drawBackground() {
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+    this.ctx.clearRect(0, 0, cw, ch);
+    if (this.background.kind === "image" && this.background.image?.naturalWidth) {
+      this.ctx.imageSmoothingEnabled = false;
+      this.ctx.drawImage(this.background.image, 0, 0, cw, ch);
+      return;
+    }
+    this.ctx.fillStyle = this.background.color || "#0E0E14";
+    this.ctx.fillRect(0, 0, cw, ch);
+  }
+
   clearCanvas() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.fillStyle = "#0E0E14";
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawBackground();
+  }
+
+  drawEffectParticles() {
+    const ctx = this.ctx;
+    for (const em of this.effectEmitters) {
+      if (em?.draw) em.draw(ctx);
+    }
+  }
+
+  drawTexts() {
+    const ctx = this.ctx;
+    ctx.imageSmoothingEnabled = true;
+    for (const entry of this.state.texts.values()) {
+      if (!entry || entry.visible === false) continue;
+      const alpha = Math.max(0, Math.min(1, Number(entry.opacity ?? 1)));
+      if (alpha <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = entry.colour || "#FFFFFF";
+      const px = Math.max(6, Math.min(72, Number(entry.size) || 14));
+      ctx.font = `${px}px "Press Start 2P", monospace`;
+      ctx.textBaseline = "top";
+      ctx.fillText(String(entry.text ?? ""), Number(entry.x) || 0, Number(entry.y) || 0);
+      ctx.restore();
+    }
   }
 
   drawSprites() {
@@ -347,8 +561,17 @@ class PixelRuntime {
     if (!this.running) return;
     this.runTouchChecks();
     this.runKeyHoldFrame();
-    this.clearCanvas();
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const dt = Math.min(0.05, Math.max(0, (now - this._lastTickMs) / 1000));
+    this._lastTickMs = now;
+    for (const em of this.effectEmitters) {
+      if (em?.update) em.update(dt);
+    }
+    this.effectEmitters = this.effectEmitters.filter((e) => e && e.alive !== false);
+    this.drawBackground();
+    this.drawEffectParticles();
     this.drawSprites();
+    this.drawTexts();
     this.rafId = requestAnimationFrame(this.tick);
   };
 
@@ -514,8 +737,93 @@ class PixelRuntime {
     }
 
     if (stmt.type === "AwardXpStatement") {
-      if (this.editorMode) return { flow: "normal" };
+      await this._postAwardXp(stmt.amount);
       return { flow: "normal" };
+    }
+
+    if (stmt.type === "AddText") {
+      const x = Number(this.evalExpr(stmt.x)) || 0;
+      const y = Number(this.evalExpr(stmt.y)) || 0;
+      this.state.texts.set(stmt.variable, {
+        text: String(stmt.text ?? ""),
+        x,
+        y,
+        colour: "#FFFFFF",
+        size: 14,
+        visible: true,
+        opacity: 1,
+      });
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "SetTextProperty") {
+      const row = this.state.texts.get(stmt.label);
+      if (!row) return { flow: "normal" };
+      const v = this.evalExpr(stmt.value);
+      const p = String(stmt.property || "").toLowerCase();
+      if (p === "text") row.text = String(v);
+      else if (p === "colour") row.colour = typeof v === "string" && v.trim() ? v.trim() : String(v);
+      else if (p === "size") row.size = Math.max(6, Math.min(96, Number(v) || 14));
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "SetBackgroundColor") {
+      const v = this.evalExpr(stmt.color);
+      const s = typeof v === "string" ? v.trim() : "";
+      if (s) this.background = { kind: "color", color: s, image: null };
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "SetBackgroundImage") {
+      await this._setBackgroundImageByName(stmt.imageName);
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "PlayEffectStatement") {
+      const x = Number(this.evalExpr(stmt.x)) || 0;
+      const y = Number(this.evalExpr(stmt.y)) || 0;
+      const opts = {};
+      if (stmt.size != null) opts.size = this.evalExpr(stmt.size);
+      if (stmt.colour != null) opts.colour = this._colourFromExpr(stmt.colour);
+      if (stmt.amount != null) opts.amount = this.evalExpr(stmt.amount);
+      const em = createEffectEmitter(
+        stmt.effectName,
+        x,
+        y,
+        this.canvas.width,
+        this.canvas.height,
+        opts,
+      );
+      this.effectEmitters.push(em);
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "PlaySoundStatement") {
+      await this._playSound(stmt.soundName, stmt.volume ?? null);
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "StopSoundStatement") {
+      this._stopSoundNamed(stmt.soundName);
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "GoToSceneStatement") {
+      this.running = false;
+      if (this.rafId != null) cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+      this.removeKeyListeners();
+      if (this.onGoToScene) await this.onGoToScene(String(stmt.sceneName));
+      return { flow: "stop_game" };
+    }
+
+    if (stmt.type === "RestartSceneStatement") {
+      this.running = false;
+      if (this.rafId != null) cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+      this.removeKeyListeners();
+      if (this.onRestartScene) await this.onRestartScene();
+      return { flow: "stop_game" };
     }
 
     return { flow: "normal" };
@@ -569,9 +877,13 @@ class PixelRuntime {
     if (this.rafId != null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
     this.removeKeyListeners();
+    this._stopAllSounds();
     this.eventBus.clear();
     this.state.sprites.clear();
     this.state.variables.clear();
+    this.state.texts.clear();
+    this.effectEmitters = [];
+    this.background = { kind: "color", color: "#0E0E14", image: null };
     this.keyPressHandlers = [];
     this.keyReleaseHandlers = [];
     this.keyHoldHandlers = [];

@@ -289,13 +289,81 @@ async function getDraftScriptsForRun() {
   await ensureScriptsLoadedForScene(sceneId);
   const scriptSources = (Array.isArray(scripts) ? scripts : []).map((script) => {
     const sid = Number(script.id);
-    if (selectedScriptId != null && sid === Number(selectedScriptId)) {
+    if (
+      selectedScriptId != null &&
+      sid === Number(selectedScriptId) &&
+      Number(selectedScriptSceneId) === sceneId
+    ) {
       return getScriptTextareaValue();
     }
     return script?.draft_content != null ? String(script.draft_content) : "";
   });
 
   return scriptSources;
+}
+
+function findSceneIdByName(sceneName) {
+  const key = normalizeNameKey(sceneName);
+  if (!key) return null;
+  const scene = scenes.find((s) => normalizeNameKey(s.name) === key);
+  return scene ? Number(scene.id) : null;
+}
+
+async function collectDraftSourcesForScene(sceneId) {
+  const sid = Number(sceneId);
+  if (!gameIdCurrent || !Number.isFinite(sid)) {
+    throw new Error("No scene to load.");
+  }
+  await loadScriptsForScene(sid);
+  return (Array.isArray(scripts) ? scripts : []).map((script) => {
+    const scriptId = Number(script.id);
+    if (
+      selectedScriptId != null &&
+      scriptId === Number(selectedScriptId) &&
+      Number(selectedScriptSceneId) === sid
+    ) {
+      return getScriptTextareaValue();
+    }
+    return script?.draft_content != null ? String(script.draft_content) : "";
+  });
+}
+
+function buildPixelScriptOptions(canvasEl) {
+  return {
+    editorMode: true,
+    gameId: gameIdCurrent,
+    spriteLibrary: buildSpriteLibraryForRun(),
+    onGoToScene: async (sceneName) => {
+      const sid = findSceneIdByName(sceneName);
+      if (sid == null) {
+        showToast(`Unknown scene "${sceneName}"`, "error");
+        stopEditorScripts();
+        return;
+      }
+      selectedSceneId = sid;
+      renderScenes(scenes);
+      await loadScriptsForScene(sid);
+      if (scripts?.length) {
+        await openScriptInEditor(sid, scripts[0]);
+      }
+      const sources = await collectDraftSourcesForScene(sid);
+      await runPixelScript(sources, canvasEl, buildPixelScriptOptions(canvasEl));
+      runtimeRunning = true;
+      updateRunButtonsUi();
+    },
+    onRestartScene: async () => {
+      const sid = Number(selectedSceneId ?? scenes[0]?.id);
+      if (!Number.isFinite(sid)) {
+        showToast("No scene to restart.", "error");
+        stopEditorScripts();
+        return;
+      }
+      const sources = await collectDraftSourcesForScene(sid);
+      await runPixelScript(sources, canvasEl, buildPixelScriptOptions(canvasEl));
+      runtimeRunning = true;
+      updateRunButtonsUi();
+    },
+  };
 }
 
 function buildSpriteLibraryForRun() {
@@ -332,10 +400,7 @@ async function runEditorScriptsOnCanvas(canvasEl) {
     throw new Error("Preview canvas is missing.");
   }
   const draftScripts = await getDraftScriptsForRun();
-  await runPixelScript(draftScripts, canvasEl, {
-    editorMode: true,
-    spriteLibrary: buildSpriteLibraryForRun(),
-  });
+  await runPixelScript(draftScripts, canvasEl, buildPixelScriptOptions(canvasEl));
   runtimeRunning = true;
   updateRunButtonsUi();
 }

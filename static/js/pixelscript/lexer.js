@@ -44,6 +44,21 @@ const KEYWORDS = new Set([
   "and",
   "or",
   "not",
+  "add",
+  "text",
+  "background",
+  "image",
+  "play",
+  "effect",
+  "sound",
+  "go",
+  "scene",
+  "restart",
+  "colour",
+  "color",
+  "size",
+  "amount",
+  "volume",
 ]);
 
 function isDigit(ch) {
