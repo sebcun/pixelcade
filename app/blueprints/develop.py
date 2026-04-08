@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Optional
@@ -15,6 +16,31 @@ develop_bp = Blueprint("develop", __name__)
 api_develop_bp = Blueprint("api_develop", __name__)
 
 ALLOWED_STATUSES = frozenset({"private", "unlisted", "public"})
+
+_ASSET_NAME_PATTERN = re.compile(r"^[a-z0-9_]+$")
+
+
+def _asset_name_help() -> str:
+    return (
+        "Use one word: lowercase letters, digits, and underscores only "
+        "(no spaces or other characters)."
+    )
+
+
+def _parse_asset_name(
+    raw: Any, *, field: str = "name"
+) -> tuple[Optional[str], Optional[tuple[Any, int]]]:
+    if not isinstance(raw, str):
+        return None, (jsonify({"error": f"{field} must be a string"}), 400)
+    name = raw.strip()
+    if not name:
+        return None, (jsonify({"error": f"{field} must not be empty"}), 400)
+    if not _ASSET_NAME_PATTERN.fullmatch(name):
+        return None, (
+            jsonify({"error": "Invalid name", "detail": _asset_name_help()}),
+            400,
+        )
+    return name, None
 
 SPRITE_PNG_MAX_BYTES = 50 * 1024
 SPRITE_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -39,6 +65,7 @@ def _game_to_dict(game: Game, *, like_count: int = 0) -> dict[str, Any]:
         "max_scenes": game.max_scenes,
         "max_sprites": game.max_sprites,
         "max_scripts_per_scene": game.max_scripts_per_scene,
+        "default_scene_id": game.default_scene_id,
         "created_at": game.created_at.isoformat() + "Z" if game.created_at else None,
         "updated_at": game.updated_at.isoformat() + "Z" if game.updated_at else None,
     }
@@ -276,9 +303,10 @@ def api_create_game():
     db.session.flush()
 
     # New games always start with one default scene and one default script.
-    scene = Scene(game_id=game.id, name="Scene 1", order_index=0)
+    scene = Scene(game_id=game.id, name="main", order_index=0)
     db.session.add(scene)
     db.session.flush()
+    game.default_scene_id = scene.id
 
     script = Script(
         scene_id=scene.id,
@@ -332,13 +360,14 @@ def api_patch_game(game_id: int):
     if not isinstance(data, dict):
         return jsonify({"error": "Invalid JSON"}), 400
 
-    allowed = {"title", "description", "status"}
+    allowed = {"title", "description", "status", "default_scene_id"}
     if not data or not any(k in data for k in allowed):
         return jsonify({"error": "No updatable fields provided"}), 400
 
     next_title = game.title
     next_description = game.description
     next_status = game.status
+    next_default_scene_id = game.default_scene_id
 
     if "title" in data:
         t, e = _parse_optional_string(data, "title")
@@ -366,6 +395,18 @@ def api_patch_game(game_id: int):
         if next_status not in ALLOWED_STATUSES:
             return jsonify({"error": "Invalid status"}), 400
 
+    if "default_scene_id" in data:
+        raw_ds = data["default_scene_id"]
+        if raw_ds is None:
+            next_default_scene_id = None
+        else:
+            if isinstance(raw_ds, bool) or not isinstance(raw_ds, int):
+                return jsonify({"error": "default_scene_id must be an integer or null"}), 400
+            ds_scene = db.session.get(Scene, raw_ds)
+            if ds_scene is None or ds_scene.game_id != game.id:
+                return jsonify({"error": "default_scene_id must refer to a scene in this game"}), 400
+            next_default_scene_id = raw_ds
+
     rej = _reject_if_visibility_without_copy(next_title, next_description, next_status)
     if rej:
         return rej
@@ -373,6 +414,7 @@ def api_patch_game(game_id: int):
     game.title = next_title
     game.description = next_description
     game.status = next_status
+    game.default_scene_id = next_default_scene_id
     db.session.commit()
     return jsonify(
         _game_to_dict(game, like_count=_positive_like_count(game.id))
@@ -528,12 +570,9 @@ def api_create_scene(game_id: int):
 
     if "name" not in data:
         return jsonify({"error": "name is required"}), 400
-    name = data["name"]
-    if not isinstance(name, str):
-        return jsonify({"error": "name must be a string"}), 400
-    name = name.strip()
-    if not name:
-        return jsonify({"error": "name must not be empty"}), 400
+    name, nerr = _parse_asset_name(data["name"], field="name")
+    if nerr:
+        return nerr[0], nerr[1]
 
     current_count = Scene.query.filter_by(game_id=game.id).count()
     if current_count >= game.max_scenes:
@@ -591,14 +630,9 @@ def api_patch_scene(game_id: int, scene_id: int):
         return jsonify({"error": "No updatable fields provided"}), 400
 
     if "name" in data:
-        n = data["name"]
-        if n is None:
-            return jsonify({"error": "name must be a string"}), 400
-        if not isinstance(n, str):
-            return jsonify({"error": "name must be a string"}), 400
-        n = n.strip()
-        if not n:
-            return jsonify({"error": "name must not be empty"}), 400
+        n, nerr = _parse_asset_name(data["name"], field="name")
+        if nerr:
+            return nerr[0], nerr[1]
         scene.name = n
 
     if "order_index" in data:
@@ -674,12 +708,9 @@ def api_create_script(game_id: int, scene_id: int):
 
     if "name" not in data:
         return jsonify({"error": "name is required"}), 400
-    name = data["name"]
-    if not isinstance(name, str):
-        return jsonify({"error": "name must be a string"}), 400
-    name = name.strip()
-    if not name:
-        return jsonify({"error": "name must not be empty"}), 400
+    name, nerr = _parse_asset_name(data["name"], field="name")
+    if nerr:
+        return nerr[0], nerr[1]
 
     script_count = Script.query.filter_by(scene_id=scene.id).count()
     if script_count >= game.max_scripts_per_scene:
@@ -731,14 +762,9 @@ def api_patch_script(game_id: int, scene_id: int, script_id: int):
         return jsonify({"error": "No updatable fields provided"}), 400
 
     if "name" in data:
-        n = data["name"]
-        if n is None:
-            return jsonify({"error": "name must be a string"}), 400
-        if not isinstance(n, str):
-            return jsonify({"error": "name must be a string"}), 400
-        n = n.strip()
-        if not n:
-            return jsonify({"error": "name must not be empty"}), 400
+        n, nerr = _parse_asset_name(data["name"], field="name")
+        if nerr:
+            return nerr[0], nerr[1]
         script.name = n
 
     if "draft_content" in data:
@@ -806,12 +832,9 @@ def api_create_sprite(game_id: int):
 
     if "name" not in data:
         return jsonify({"error": "name is required"}), 400
-    name = data["name"]
-    if not isinstance(name, str):
-        return jsonify({"error": "name must be a string"}), 400
-    name = name.strip()
-    if not name:
-        return jsonify({"error": "name must not be empty"}), 400
+    name, nerr = _parse_asset_name(data["name"], field="name")
+    if nerr:
+        return nerr[0], nerr[1]
 
     count = Sprite.query.filter_by(game_id=game.id).count()
     if count >= game.max_sprites:
@@ -853,14 +876,9 @@ def api_rename_sprite(game_id: int, sprite_id: int):
 
     if "name" not in data:
         return jsonify({"error": "name is required"}), 400
-    n = data["name"]
-    if n is None:
-        return jsonify({"error": "name must be a string"}), 400
-    if not isinstance(n, str):
-        return jsonify({"error": "name must be a string"}), 400
-    n = n.strip()
-    if not n:
-        return jsonify({"error": "name must not be empty"}), 400
+    n, nerr = _parse_asset_name(data["name"], field="name")
+    if nerr:
+        return nerr[0], nerr[1]
 
     sprite.name = n
     db.session.commit()

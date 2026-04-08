@@ -25,10 +25,14 @@ async function handleResponse(res, data, options = {}) {
   }
   if (!res.ok) {
     const err = data?.error;
-    const message =
+    const detail = data?.detail;
+    let message =
       err != null && err !== ""
         ? String(err)
         : res.statusText || "Request failed";
+    if (detail != null && String(detail).trim() !== "") {
+      message = `${message}: ${String(detail).trim()}`;
+    }
     throw new Error(message);
   }
   return data;

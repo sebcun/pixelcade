@@ -36,20 +36,33 @@ function normalizeNameKey(value) {
     .toLocaleLowerCase();
 }
 
+const ASSET_NAME_HINT =
+  "Use one word: lowercase letters, digits, and underscores only (no spaces).";
+
+/** @returns {string | null} Error message, or null if valid. */
+function validateAssetName(raw) {
+  const name = String(raw ?? "").trim();
+  if (!name) return "Name must not be empty.";
+  if (!/^[a-z0-9_]+$/.test(name)) return ASSET_NAME_HINT;
+  return null;
+}
+
 function sceneSpriteNameExists(kind, name, excludeId) {
   const key = normalizeNameKey(name);
   if (!key) return false;
 
   const inScenes = scenes.some((scene) => {
     const id = Number(scene.id);
-    if (kind === "scene" && Number(excludeId) === id) return false;
+    if (kind === "scene" && excludeId != null && Number(excludeId) === id)
+      return false;
     return normalizeNameKey(scene.name) === key;
   });
   if (inScenes) return true;
 
   return sprites.some((sprite) => {
     const id = Number(sprite.id);
-    if (kind === "sprite" && Number(excludeId) === id) return false;
+    if (kind === "sprite" && excludeId != null && Number(excludeId) === id)
+      return false;
     return normalizeNameKey(sprite.name) === key;
   });
 }
@@ -186,6 +199,9 @@ let scriptAutosaveTimer = null;
 let scriptAutosaveToken = 0;
 let runtimeRunning = false;
 
+/** Scene id to run when nothing is selected, or null = first scene in list order. */
+let defaultSceneId = null;
+
 function setScriptEditorVisible(visible) {
   const panel = $("script-editor-panel");
   if (panel) panel.hidden = !visible;
@@ -272,6 +288,17 @@ async function ensureScenesLoaded() {
   await loadScenes();
 }
 
+async function loadGameDevelopMeta() {
+  if (!gameIdCurrent) return;
+  try {
+    const game = await api.get(`/api/develop/games/${gameIdCurrent}`);
+    defaultSceneId =
+      game?.default_scene_id != null ? Number(game.default_scene_id) : null;
+  } catch {
+    defaultSceneId = null;
+  }
+}
+
 async function ensureScriptsLoadedForScene(sceneId) {
   const sid = Number(sceneId);
   if (Number(selectedSceneId) !== sid || !Array.isArray(scripts) || !scripts.length) {
@@ -279,11 +306,24 @@ async function ensureScriptsLoadedForScene(sceneId) {
   }
 }
 
+function resolveEditorRunSceneId() {
+  if (selectedSceneId != null) {
+    const sid = Number(selectedSceneId);
+    if (scenes.some((s) => Number(s.id) === sid)) return sid;
+  }
+  if (defaultSceneId != null) {
+    const did = Number(defaultSceneId);
+    if (scenes.some((s) => Number(s.id) === did)) return did;
+  }
+  if (scenes.length) return Number(scenes[0].id);
+  return NaN;
+}
+
 async function getDraftScriptsForRun() {
   await ensureScenesLoaded();
   if (!scenes.length) throw new Error("No scenes available to run.");
 
-  const sceneId = selectedSceneId != null ? Number(selectedSceneId) : Number(scenes[0].id);
+  const sceneId = resolveEditorRunSceneId();
   if (!Number.isFinite(sceneId)) throw new Error("Invalid scene selected for run.");
 
   await ensureScriptsLoadedForScene(sceneId);
@@ -871,15 +911,46 @@ function bindOnce() {
         e.preventDefault();
         e.stopPropagation();
         const action = actionBtn.dataset.sceneAction;
+        if (action === "set-start") {
+          try {
+            const updated = await api.patch(`/api/develop/games/${gameIdCurrent}`, {
+              default_scene_id: sceneId,
+            });
+            defaultSceneId =
+              updated?.default_scene_id != null ? Number(updated.default_scene_id) : null;
+            renderScenes(scenes);
+            showToast("This scene will run first when you press Run or Play.", "success");
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Could not update start scene", "error");
+          }
+          return;
+        }
+
+        if (action === "clear-start") {
+          try {
+            const updated = await api.patch(`/api/develop/games/${gameIdCurrent}`, {
+              default_scene_id: null,
+            });
+            defaultSceneId =
+              updated?.default_scene_id != null ? Number(updated.default_scene_id) : null;
+            renderScenes(scenes);
+            showToast("Using the first scene in the list as the start.", "success");
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Could not clear start scene", "error");
+          }
+          return;
+        }
+
         if (action === "rename") {
           const nextName = await modalManager.prompt({
             title: "Rename scene",
-            description: "Choose a new scene name.",
+            description: `${ASSET_NAME_HINT} Scene names must be unique among scenes and sprites.`,
             label: "Scene name",
             initialValue: String(scene.name ?? ""),
             confirmLabel: "Save name",
             validate: (value) => {
-              if (!String(value).trim()) return "Name must not be empty.";
+              const v = validateAssetName(value);
+              if (v) return v;
               if (sceneSpriteNameExists("scene", value, sceneId)) {
                 return "That name is already used by another scene or sprite.";
               }
@@ -918,6 +989,7 @@ function bindOnce() {
           try {
             await api.delete(`/api/develop/games/${gameIdCurrent}/scenes/${sceneId}`);
             scenes = scenes.filter((s) => Number(s.id) !== sceneId);
+            await loadGameDevelopMeta();
             if (Number(selectedSceneId) === sceneId) {
               selectedSceneId = null;
               selectedScriptId = null;
@@ -968,10 +1040,11 @@ function bindOnce() {
           void (async () => {
             const nextName = await modalManager.prompt({
               title: "Rename script",
-              description: "Choose a new script name.",
+              description: ASSET_NAME_HINT,
               label: "Script name",
               initialValue: String(script.name ?? ""),
               confirmLabel: "Save name",
+              validate: (value) => validateAssetName(value),
             });
             if (nextName == null || nextName === String(script.name ?? "").trim()) return;
             try {
@@ -1043,11 +1116,19 @@ function bindOnce() {
     newSceneBtn.dataset.bound = "1";
     newSceneBtn.addEventListener("click", async () => {
       if (!gameIdCurrent) return;
-      const name = window.prompt("Name for new scene", "scene");
+      const name = window.prompt(
+        `Name for new scene\n\n${ASSET_NAME_HINT}`,
+        "level_2",
+      );
       if (name == null) return;
       const trimmed = String(name).trim();
-      if (!trimmed) {
-        showToast("Name must not be empty", "error");
+      const nameErr = validateAssetName(trimmed);
+      if (nameErr) {
+        showToast(nameErr, "error");
+        return;
+      }
+      if (sceneSpriteNameExists("scene", trimmed, null)) {
+        showToast("That name is already used by another scene or sprite.", "error");
         return;
       }
       newSceneBtn.disabled = true;
@@ -1075,11 +1156,12 @@ function bindOnce() {
     newScriptBtn.dataset.bound = "1";
     newScriptBtn.addEventListener("click", async () => {
       if (!gameIdCurrent || selectedSceneId == null) return;
-      const name = window.prompt("Name for new script", "main");
+      const name = window.prompt(`Name for new script\n\n${ASSET_NAME_HINT}`, "main");
       if (name == null) return;
       const trimmed = String(name).trim();
-      if (!trimmed) {
-        showToast("Name must not be empty", "error");
+      const nameErr = validateAssetName(trimmed);
+      if (nameErr) {
+        showToast(nameErr, "error");
         return;
       }
       newScriptBtn.disabled = true;
@@ -1295,11 +1377,16 @@ function bindOnce() {
   if (newBtn) {
     newBtn.addEventListener("click", async () => {
       if (!gameIdCurrent) return;
-      const name = window.prompt("Name for new sprite", "sprite");
+      const name = window.prompt(`Name for new sprite\n\n${ASSET_NAME_HINT}`, "hero");
       if (name == null) return;
       const trimmed = String(name).trim();
-      if (!trimmed) {
-        showToast("Name must not be empty", "error");
+      const nameErr = validateAssetName(trimmed);
+      if (nameErr) {
+        showToast(nameErr, "error");
+        return;
+      }
+      if (sceneSpriteNameExists("sprite", trimmed, null)) {
+        showToast("That name is already used by another scene or sprite.", "error");
         return;
       }
       newBtn.disabled = true;
@@ -1344,12 +1431,13 @@ function bindOnce() {
       );
       const trimmed = await modalManager.prompt({
         title: "Rename sprite",
-        description: "Choose a new sprite name.",
+        description: `${ASSET_NAME_HINT} Sprite names must be unique among scenes and sprites.`,
         label: "Sprite name",
-        initialValue: currentName || "sprite",
+        initialValue: currentName || "hero",
         confirmLabel: "Save name",
         validate: (value) => {
-          if (!String(value).trim()) return "Name must not be empty.";
+          const v = validateAssetName(value);
+          if (v) return v;
           if (sceneSpriteNameExists("sprite", value, selectedSpriteId)) {
             return "That name is already used by another scene or sprite.";
           }
@@ -1537,11 +1625,43 @@ function renderScenes(scenesToRender) {
     nameText.title = nameText.textContent;
 
     nameWrap.appendChild(nameText);
+    if (Number(defaultSceneId) === id) {
+      const badge = document.createElement("span");
+      badge.className = "develop-scene-start-badge";
+      badge.textContent = "DEFAULT";
+      nameWrap.appendChild(badge);
+    }
 
     const meta = document.createElement("span");
     meta.className = "develop-editor-item__meta";
     const actions = document.createElement("span");
     actions.className = "develop-editor-item__actions";
+
+    if (Number(defaultSceneId) === id) {
+      const clearStartBtn = document.createElement("button");
+      clearStartBtn.type = "button";
+      clearStartBtn.className = "develop-editor-item__icon-btn";
+      clearStartBtn.dataset.sceneAction = "clear-start";
+      clearStartBtn.setAttribute(
+        "aria-label",
+        "Stop pinning this scene; use the first scene in the list as the start",
+      );
+      clearStartBtn.textContent = "↺";
+      clearStartBtn.title = "Use list order (first scene) instead of this pin";
+      actions.appendChild(clearStartBtn);
+    } else {
+      const pinBtn = document.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = "develop-editor-item__icon-btn develop-editor-item__icon-btn--accent";
+      pinBtn.dataset.sceneAction = "set-start";
+      pinBtn.setAttribute(
+        "aria-label",
+        "Run this scene first when you press Run or Play (when no scene is open)",
+      );
+      pinBtn.textContent = "⌂";
+      pinBtn.title = "Set as default scene";
+      actions.appendChild(pinBtn);
+    }
 
     const renameBtn = document.createElement("button");
     renameBtn.type = "button";
@@ -1781,6 +1901,8 @@ export async function refreshGameEditorView(gameId) {
   closePlayModal();
 
   if (!gameIdCurrent) return;
+
+  await loadGameDevelopMeta();
 
   // Reset view on entry.
   setSidebarMode("root");

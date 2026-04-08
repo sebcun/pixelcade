@@ -88,6 +88,16 @@ class Game(db.Model):
     max_scenes = db.Column(db.Integer, nullable=False, default=2)
     max_sprites = db.Column(db.Integer, nullable=False, default=10)
     max_scripts_per_scene = db.Column(db.Integer, nullable=False, default=3)
+    default_scene_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "scenes.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_games_default_scene_id",
+        ),
+        nullable=True,
+    )
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime,

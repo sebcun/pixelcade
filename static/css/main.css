@@ -1764,6 +1764,37 @@ body.auth-modal-is-open {
   border-color: rgba(255, 119, 168, 0.55);
 }
 
+.develop-editor-item__icon-btn--accent {
+  border-color: rgba(255, 163, 0, 0.45);
+  background: rgba(255, 163, 0, 0.12);
+  color: #ffd6a5;
+}
+
+.develop-editor-item__icon-btn--accent:hover {
+  border-color: rgba(255, 163, 0, 0.65);
+  background: rgba(255, 163, 0, 0.2);
+}
+
+.develop-scene-start-badge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 163, 0, 0.45);
+  background: rgba(255, 163, 0, 0.12);
+  color: #ffd6a5;
+}
+
+.develop-asset-name-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.65);
+}
+
 .editor-unpublished-dot {
   width: 0.55rem;
   height: 0.55rem;

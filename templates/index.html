@@ -242,6 +242,12 @@
             hidden
             aria-label="Scenes"
           >
+            <p class="develop-asset-name-hint" id="develop-scenes-name-hint">
+              Names: one word, lowercase, letters, digits, and underscores only. Use the
+              <strong>⌂</strong> pin on a scene so it runs first when you press Run or Play
+              (when no scene is open in the editor). The row marked
+              <strong>DEFAULT</strong> is your start scene.
+            </p>
             <button
               type="button"
               class="btn btn--nav-primary develop-editor-new-btn"
@@ -273,6 +279,10 @@
                 >—</span
               >
             </div>
+            <p class="develop-asset-name-hint" id="develop-scripts-name-hint">
+              Script names: one word, lowercase, letters, digits, and underscores only (no
+              spaces).
+            </p>
             <button
               type="button"
               class="btn btn--nav-primary develop-editor-new-btn"
@@ -304,6 +314,10 @@
                 + New Sprite
               </button>
             </div>
+            <p class="develop-asset-name-hint" id="develop-sprites-name-hint">
+              Sprite names: one word, lowercase, letters, digits, and underscores only. Names
+              must not match a scene name (they share the same namespace in scripts).
+            </p>
             <div
               id="sprite-sidebar-list"
               class="sprite-sidebar__list"
