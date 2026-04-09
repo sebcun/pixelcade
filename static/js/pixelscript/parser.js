@@ -580,11 +580,38 @@ class Parser {
     return { type: "RestartSceneStatement" };
   }
 
+  parseToast() {
+    this.expect("KEYWORD", "toast");
+    const message = this.parseExpression();
+    let toastType = "success";
+    if (this.is("STRING")) {
+      const raw = String(this.peek().value).toLowerCase();
+      if (raw === "error" || raw === "warning" || raw === "success") {
+        this.advance();
+        toastType = raw;
+      }
+    }
+    return { type: "ToastStatement", message, toastType };
+  }
+
+  parseLog() {
+    this.expect("KEYWORD", "log");
+    const value = this.parseExpression();
+    return { type: "LogStatement", value };
+  }
+
   parseStatement() {
     if (this.is("NEWLINE")) {
       this.advance();
       return null;
     }
+    const stmtLine = this.peek()?.line ?? null;
+    const stmt = this.parseStatementInner();
+    if (stmt && typeof stmt === "object") stmt.line = stmtLine;
+    return stmt;
+  }
+
+  parseStatementInner() {
     if (this.is("KEYWORD", "if")) return this.parseIfChain();
     if (this.is("KEYWORD", "while")) return this.parseWhile();
     if (this.is("KEYWORD", "loop")) return this.parseLoop();
@@ -612,6 +639,8 @@ class Parser {
     if (this.is("KEYWORD", "play")) return this.parsePlay();
     if (this.is("KEYWORD", "go")) return this.parseGoToScene();
     if (this.is("KEYWORD", "restart")) return this.parseRestartScene();
+    if (this.is("KEYWORD", "toast")) return this.parseToast();
+    if (this.is("KEYWORD", "log")) return this.parseLog();
     const token = this.peek();
     throw new Error(`Unknown command "${token?.value ?? "EOF"}" at line ${token?.line ?? "?"}`);
   }

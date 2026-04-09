@@ -74,6 +74,9 @@ class PixelRuntime {
       gameId = null,
       onGoToScene = null,
       onRestartScene = null,
+      onScriptError = null,
+      onToast = null,
+      onConsoleLog = null,
     } = {},
   ) {
     this.canvas = canvas;
@@ -82,6 +85,9 @@ class PixelRuntime {
     this.gameId = gameId != null ? String(gameId) : null;
     this.onGoToScene = typeof onGoToScene === "function" ? onGoToScene : null;
     this.onRestartScene = typeof onRestartScene === "function" ? onRestartScene : null;
+    this.onScriptError = typeof onScriptError === "function" ? onScriptError : null;
+    this.onToast = typeof onToast === "function" ? onToast : null;
+    this.onConsoleLog = typeof onConsoleLog === "function" ? onConsoleLog : null;
     this.spriteLibrary =
       spriteLibrary && typeof spriteLibrary === "object" ? spriteLibrary : {};
     /** @type {Map<string, HTMLImageElement>} */
@@ -419,12 +425,29 @@ class PixelRuntime {
     }
   }
 
+  reportParseError(err) {
+    if (!this.onScriptError) return;
+    const raw = err instanceof Error ? err.message : String(err);
+    const m = raw.match(/\bat line (\d+)/);
+    const line = m ? Number(m[1]) : null;
+    const message = m
+      ? (raw.slice(0, m.index).replace(/\s+$/, "").trim() || raw.trim())
+      : raw.trim();
+    const n = line != null ? String(line) : "?";
+    const formatted = `Line ${n} — ${message}`;
+    this.onScriptError({ phase: "parse", line, message, formatted });
+  }
+
+  reportRuntimeError(line, err) {
+    if (!this.onScriptError) return;
+    const msg = err instanceof Error ? err.message : String(err);
+    const n = line != null ? String(line) : "?";
+    const formatted = `Line ${n} — ${msg}`;
+    this.onScriptError({ phase: "runtime", line, message: msg, formatted });
+  }
+
   async safeExecBlock(body) {
-    try {
-      await this.execBlock(body || []);
-    } catch {
-      /* ignore */
-    }
+    await this.execBlock(body || []);
   }
 
   async preloadSpriteImages() {
@@ -584,14 +607,23 @@ class PixelRuntime {
     const handlers = this.eventBus.get(eventName) || [];
     for (const handler of handlers) {
       if (!this.running) return;
-      await handler();
+      try {
+        await handler();
+      } catch (e) {
+        this.reportRuntimeError(null, e);
+      }
     }
   }
 
   async execBlock(stmts) {
     for (const st of stmts || []) {
-      const r = await this.execStatement(st);
-      if (r && r.flow !== "normal") return r;
+      try {
+        const r = await this.execStatement(st);
+        if (r && r.flow !== "normal") return r;
+      } catch (e) {
+        this.reportRuntimeError(st?.line ?? null, e);
+        return { flow: "normal" };
+      }
     }
     return { flow: "normal" };
   }
@@ -826,6 +858,21 @@ class PixelRuntime {
       return { flow: "stop_game" };
     }
 
+    if (stmt.type === "ToastStatement") {
+      const raw = this.evalExpr(stmt.message);
+      const msg = String(raw);
+      let t = stmt.toastType || "success";
+      if (t !== "error" && t !== "warning" && t !== "success") t = "success";
+      if (this.onToast) this.onToast(msg, t);
+      return { flow: "normal" };
+    }
+
+    if (stmt.type === "LogStatement") {
+      const raw = this.evalExpr(stmt.value);
+      if (this.onConsoleLog) this.onConsoleLog(String(raw));
+      return { flow: "normal" };
+    }
+
     return { flow: "normal" };
   }
 
@@ -867,7 +914,11 @@ class PixelRuntime {
         });
         continue;
       }
-      await this.execStatement(stmt);
+      try {
+        await this.execStatement(stmt);
+      } catch (e) {
+        this.reportRuntimeError(stmt?.line ?? null, e);
+      }
     }
     await this.emit("game_start");
   }
@@ -895,11 +946,23 @@ class PixelRuntime {
   async runScripts(scripts) {
     this.setupCanvas();
     await this.preloadSpriteImages();
+    let program;
+    try {
+      program = toProgram(scripts);
+    } catch (e) {
+      this.reportParseError(e);
+      this.running = false;
+      this.clearCanvas();
+      return;
+    }
     this.running = true;
     this.installKeyListeners(this.canvas.parentElement);
     this.tick();
-    const program = toProgram(scripts);
-    await this.runProgram(program);
+    try {
+      await this.runProgram(program);
+    } catch (e) {
+      this.reportRuntimeError(null, e);
+    }
   }
 }
 

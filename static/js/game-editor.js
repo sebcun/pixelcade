@@ -1,6 +1,10 @@
 import { api } from "./api.js";
 import { modalManager } from "./modal-manager.js";
-import { showToast } from "./toast.js";
+import {
+  showToast,
+  appendPreviewConsoleLine,
+  clearPreviewConsole,
+} from "./toasts.js";
 import { run as runPixelScript, stop as stopPixelScript } from "./pixelscript/runtime.js";
 
 const SPRITE_W = 32;
@@ -373,6 +377,23 @@ function buildPixelScriptOptions(canvasEl) {
     editorMode: true,
     gameId: gameIdCurrent,
     spriteLibrary: buildSpriteLibraryForRun(),
+    onScriptError: (payload) => {
+      const text =
+        payload?.formatted ??
+        `Line ${payload?.line != null ? payload.line : "?"} — ${payload?.message ?? "Error"}`;
+      showToast(text, "error");
+      appendPreviewConsoleLine(text, "error");
+    },
+    onToast: (msg, type) => {
+      const t =
+        type === "error" || type === "warning" || type === "success"
+          ? type
+          : "success";
+      showToast(String(msg), t);
+    },
+    onConsoleLog: (msg) => {
+      appendPreviewConsoleLine(String(msg), "log");
+    },
     onGoToScene: async (sceneName) => {
       const sid = findSceneIdByName(sceneName);
       if (sid == null) {
@@ -439,6 +460,7 @@ async function runEditorScriptsOnCanvas(canvasEl) {
   if (!(canvasEl instanceof HTMLCanvasElement)) {
     throw new Error("Preview canvas is missing.");
   }
+  clearPreviewConsole();
   const draftScripts = await getDraftScriptsForRun();
   await runPixelScript(draftScripts, canvasEl, buildPixelScriptOptions(canvasEl));
   runtimeRunning = true;
@@ -1359,7 +1381,6 @@ function bindOnce() {
         renderSprites(sprites, /* preserveSelection */ true);
         syncDirtyUiForCurrentSprite();
 
-        showToast("Draft saved", "success");
       } catch (e) {
         showToast(
           e instanceof Error ? e.message : "Failed to save sprite draft",

@@ -59,6 +59,8 @@ const KEYWORDS = new Set([
   "size",
   "amount",
   "volume",
+  "toast",
+  "log",
 ]);
 
 function isDigit(ch) {
