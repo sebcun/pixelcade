@@ -14,7 +14,13 @@ from app.models import Game, GameLike, Scene, Script, Sprite, User, XPLog
 api_games_bp = Blueprint("api_games", __name__)
 
 _TIER_WINDOWS = {"small": 60, "medium": 300, "large": 1800}
-_TIER_AMOUNTS = {"small": 10, "medium": 35, "large": 100}
+_TIER_AMOUNTS = {"small": 10, "medium": 25, "large": 75}
+
+
+def _xp_to_advance_from_level(level: int) -> int:
+    """XP required to go from `level` to `level + 1` (100 * level^1.5)."""
+    lv = max(1, int(level))
+    return int(100 * (lv**1.5))
 
 _PER_PAGE = 20
 
@@ -307,13 +313,27 @@ def api_public_unlike_game(game_id: int):
 @login_required
 def award_game_xp(game_id: int):
     game = db.session.get(Game, game_id)
-    if not game:
+    if game is None or game.status not in ("public", "unlisted"):
         return jsonify({"error": "Game not found"}), 404
 
-    body = request.get_json(silent=True) or {}
-    tier = str(body.get("tier", "")).lower().strip()
+    if not request.is_json:
+        return jsonify({"error": "Request body must be JSON"}), 400
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    raw_tier = body.get("amount", body.get("tier"))
+    tier = str(raw_tier or "").lower().strip()
     if tier not in _TIER_AMOUNTS:
-        return jsonify({"error": 'tier must be "small", "medium", or "large"'}), 400
+        return (
+            jsonify(
+                {
+                    "error": 'amount must be "small", "medium", or "large" '
+                    '(alias: tier)'
+                }
+            ),
+            400,
+        )
 
     window_sec = _TIER_WINDOWS[tier]
     cutoff = datetime.utcnow() - timedelta(seconds=window_sec)
@@ -329,21 +349,42 @@ def award_game_xp(game_id: int):
         .order_by(XPLog.awarded_at.desc())
     )
     if q.first():
-        return jsonify({"awarded": False, "reason": "rate_limited"}), 200
+        return jsonify({"error": "XP rate limit reached"}), 429
 
-    amount = _TIER_AMOUNTS[tier]
+    xp_gained = _TIER_AMOUNTS[tier]
     user = db.session.get(User, current_user.id)
     if not user:
         return jsonify({"error": "User not found"}), 401
 
-    user.xp = int(user.xp or 0) + amount
+    user.xp = int(user.xp or 0) + xp_gained
+    pixels_gained = 0
+    levelled_up = False
+    while user.xp >= _xp_to_advance_from_level(user.level):
+        need = _xp_to_advance_from_level(user.level)
+        user.xp -= need
+        user.level = int(user.level or 1) + 1
+        pixels_gained += 25 * user.level
+        levelled_up = True
+
+    user.pixels = int(user.pixels or 0) + pixels_gained
+
     log = XPLog(
         user_id=user.id,
         game_id=game_id,
-        amount=amount,
+        amount=xp_gained,
         tier=tier,
     )
     db.session.add(log)
     db.session.commit()
 
-    return jsonify({"awarded": True, "amount": amount, "xp": user.xp}), 200
+    return (
+        jsonify(
+            {
+                "xp_gained": xp_gained,
+                "levelled_up": levelled_up,
+                "new_level": int(user.level or 1),
+                "pixels_gained": pixels_gained,
+            }
+        ),
+        200,
+    )

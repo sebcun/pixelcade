@@ -422,7 +422,7 @@ class PixelRuntime {
           ...(token ? { "X-CSRFToken": token, "X-CSRF-Token": token } : {}),
         },
         credentials: "same-origin",
-        body: JSON.stringify({ tier: t }),
+        body: JSON.stringify({ amount: t }),
       });
     } catch {
       /* no-op */
