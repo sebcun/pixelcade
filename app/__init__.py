@@ -9,6 +9,7 @@ from app.blueprints.auth import api_auth_bp, auth_bp
 from app.blueprints.avatar import avatar_bp
 from app.blueprints.develop import api_develop_bp, develop_bp
 from app.blueprints.game_api import api_games_bp
+from app.blueprints.game_player import game_player_bp
 from app.blueprints.games import games_bp
 from app.blueprints.main import main_bp
 from app.blueprints.profile import profile_bp
@@ -54,6 +55,7 @@ def create_app() -> Flask:
     app.register_blueprint(develop_bp, url_prefix="/develop")
     app.register_blueprint(api_develop_bp, url_prefix="/api/develop")
     app.register_blueprint(api_games_bp, url_prefix="/api/games")
+    app.register_blueprint(game_player_bp, url_prefix="/game")
     app.register_blueprint(games_bp, url_prefix="/games")
     app.register_blueprint(profile_bp, url_prefix="/profile")
     app.register_blueprint(avatar_bp, url_prefix="/avatar")

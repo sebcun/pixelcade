@@ -451,7 +451,6 @@ body.auth-modal-is-open {
     visibility 0s;
 }
 
-/* Inactive panel off layout so it cannot inflate scroll height (login vs signup). */
 .auth-modal-root.is-open .auth-modal-panel:not(.auth-modal-panel--active) {
   position: fixed;
   left: -10000px;
@@ -1285,7 +1284,6 @@ body.auth-modal-is-open {
   background: rgba(255, 79, 173, 0.15);
 }
 
-/* --- Sprite editor (/develop/game/:id/editor) --- */
 .develop-editor-top {
   display: flex;
   flex-wrap: wrap;
@@ -1647,7 +1645,6 @@ body.auth-modal-is-open {
   height: 1.05rem;
 }
 
-/* --- Develop editor layout (Scenes / Scripts / Sprites) --- */
 .develop-editor-layout {
   display: grid;
   grid-template-columns: min(22rem, 100%) 1fr;
@@ -1914,7 +1911,6 @@ body.auth-modal-is-open {
   min-width: 0;
 }
 
-/* --- Script editor panel --- */
 .script-editor-panel {
   background: var(--surface);
   border: 2px solid rgba(0, 229, 204, 0.2);
@@ -2261,4 +2257,195 @@ body.editor-play-modal-is-open {
   height: auto;
   aspect-ratio: 16 / 9;
   background: #0e0e14;
+}
+
+
+html.game-player-is-playing,
+html.game-player-is-playing body {
+  overflow: hidden;
+}
+
+.develop-layout.game-player {
+  width: 100%;
+}
+
+.develop-shell.game-player-shell {
+  min-height: 0;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.game-player__status {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.88;
+}
+
+.game-player__article {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.game-player__masthead {
+  width: 100%;
+}
+
+.game-player-shell .game-player__header {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 2px solid rgba(0, 229, 204, 0.28);
+}
+
+.game-player__title {
+  word-break: break-word;
+}
+
+.game-player__description {
+  max-width: none;
+  white-space: pre-wrap;
+}
+
+.game-player__author {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.game-player__author-label {
+  margin-right: 0.35rem;
+  font-weight: 500;
+}
+
+.game-player__author-link {
+  color: var(--color-aqua);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.game-player__author-link:hover {
+  text-decoration: underline;
+}
+
+.game-player__author-link:not([href]) {
+  color: var(--text);
+  font-weight: 500;
+  cursor: default;
+  text-decoration: none;
+}
+
+.game-player__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  margin-bottom: 0;
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid rgba(0, 229, 204, 0.2);
+}
+
+.game-player__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+}
+
+.game-player__stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.game-player__stat-label {
+  opacity: 0.75;
+  font-weight: 500;
+}
+
+.game-player__stat-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-player__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.65rem;
+}
+
+.game-player__stage {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
+.game-player__canvas-stack {
+  position: relative;
+  width: 100%;
+  max-width: min(
+    960px,
+    calc(100vw - 2.75rem),
+    calc((100vh - 17rem) * 16 / 9)
+  );
+  margin-inline: auto;
+}
+
+.game-player .game-player__canvas-wrap.develop-editor-preview__canvas-wrap {
+  max-width: none;
+  width: 100%;
+}
+
+.game-player__canvas-wrap {
+  width: 100%;
+}
+
+.game-player__game-canvas {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.game-player__start-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1rem;
+  border-radius: 4px;
+  background: rgba(14, 14, 20, 0.85);
+  backdrop-filter: blur(5px);
+}
+
+.game-player__start-overlay:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-player__start-overlay[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.game-player__start-card {
+  max-width: 22rem;
+  text-align: center;
+}
+
+.game-player__start-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--color-aqua);
+}
+
+.game-player__start-lead {
+  margin: 0 0 1.1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.game-player__start-btn {
+  min-width: 8rem;
 }

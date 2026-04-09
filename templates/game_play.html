@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Play — Pixelcade{% endblock %}
+{% block content %}
+<main
+  class="develop-shell game-player-shell"
+  id="game-player-root"
+  data-game-id="{{ game_id }}"
+>
+  <div class="develop-layout game-player">
+    <p
+      id="game-player-loading"
+      class="game-player__status"
+      role="status"
+    >
+      Loading game…
+    </p>
+    <p
+      id="game-player-error"
+      class="develop-banner develop-banner--error"
+      role="alert"
+      hidden
+    ></p>
+
+    <article id="game-player-content" class="game-player__article" hidden>
+      <div class="game-player__masthead">
+        <header class="game-player__header">
+          <p class="develop-kicker font-display">Play</p>
+          <h1 id="game-player-title" class="develop-page-title game-player__title">
+            —
+          </h1>
+          <p id="game-player-description" class="develop-page-lead game-player__description"></p>
+          <p class="game-player__author">
+            <span class="game-player__author-label">By</span>
+            <a
+              id="game-player-author-link"
+              class="game-player__author-link"
+              href="#"
+              >—</a
+            >
+          </p>
+        </header>
+
+        <div class="game-player__toolbar" aria-label="Game actions">
+          <div class="game-player__stats">
+            <span class="game-player__stat"
+              ><span class="game-player__stat-label">Plays</span>
+              <span id="game-player-play-count" class="game-player__stat-value"
+                >0</span
+              ></span
+            >
+            <span class="game-player__stat"
+              ><span class="game-player__stat-label">Likes</span>
+              <span id="game-player-like-count" class="game-player__stat-value"
+                >0</span
+              ></span
+            >
+            <span class="game-player__stat"
+              ><span class="game-player__stat-label">Dislikes</span>
+              <span id="game-player-dislike-count" class="game-player__stat-value"
+                >0</span
+              ></span
+            >
+          </div>
+          <div class="game-player__actions">
+            <button
+              type="button"
+              class="btn btn--nav-secondary"
+              id="game-player-btn-like"
+              aria-label="Like this game"
+            >
+              Like
+            </button>
+            <button
+              type="button"
+              class="btn btn--nav-secondary"
+              id="game-player-btn-dislike"
+              aria-label="Dislike this game"
+            >
+              Dislike
+            </button>
+            <button
+              type="button"
+              class="btn btn--nav-primary"
+              id="game-player-btn-fullscreen"
+            >
+              Fullscreen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="game-player__stage">
+        <div class="game-player__canvas-stack">
+          <div
+            class="develop-editor-preview__canvas-wrap game-player__canvas-wrap"
+          >
+            <canvas
+              id="game-player-canvas"
+              class="develop-editor-preview__canvas game-player__game-canvas"
+              width="480"
+              height="270"
+              tabindex="0"
+              aria-label="Game"
+            ></canvas>
+          </div>
+          <div
+            id="game-player-start-overlay"
+            class="game-player__start-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="game-player-start-title"
+            hidden
+          >
+            <div class="game-player__start-card">
+              <p
+                id="game-player-start-title"
+                class="game-player__start-title font-display"
+              >
+                Ready?
+              </p>
+              <p class="game-player__start-lead">
+                PLACEHOLDER
+              </p>
+              <button
+                type="button"
+                class="btn btn--nav-primary game-player__start-btn"
+                id="game-player-btn-start"
+              >
+                Play
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}
+<script type="module">
+  import { initGamePlayerPage } from "{{ url_for('static', filename='js/game-player.js') }}";
+  initGamePlayerPage();
+</script>
+{% endblock %}

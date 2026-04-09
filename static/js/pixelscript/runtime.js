@@ -29,6 +29,15 @@ function normalizeKeyForMap(eventKey) {
   return ev.toLocaleLowerCase();
 }
 
+function shouldTrapScrollKey(e) {
+  const k = String(e?.key ?? "");
+  if (k === " " || k === "Spacebar") return true;
+  if (/^arrow/i.test(k)) return true;
+  if (k === "PageUp" || k === "PageDown" || k === "Home" || k === "End")
+    return true;
+  return false;
+}
+
 function toProgram(scripts) {
   const list = Array.isArray(scripts) ? scripts : [scripts];
   const body = [];
@@ -77,10 +86,18 @@ class PixelRuntime {
       onScriptError = null,
       onToast = null,
       onConsoleLog = null,
+      resolutionScale = 1,
+      keyListenerRoot = "parent",
+      trapScrollKeys = false,
     } = {},
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
+    const rs = Number(resolutionScale);
+    this.resolutionScale =
+      Number.isFinite(rs) && rs >= 1 ? Math.min(4, Math.round(rs)) : 1;
+    this.keyListenerRoot = keyListenerRoot === "canvas" ? "canvas" : "parent";
+    this.trapScrollKeys = Boolean(trapScrollKeys);
     this.editorMode = editorMode;
     this.gameId = gameId != null ? String(gameId) : null;
     this.onGoToScene = typeof onGoToScene === "function" ? onGoToScene : null;
@@ -124,6 +141,8 @@ class PixelRuntime {
     this.keyListenerTarget = null;
     this._onKeyDown = null;
     this._onKeyUp = null;
+    /** @type {((e: KeyboardEvent) => void) | null} */
+    this._onWindowKeyScrollTrap = null;
     this.holdRunPromise = Promise.resolve();
   }
 
@@ -263,11 +282,22 @@ class PixelRuntime {
         if (keyMatches(h.keyName, e.key)) void this.safeExecBlock(h.body);
       }
     };
+    if (this.trapScrollKeys) {
+      this._onWindowKeyScrollTrap = (e) => {
+        if (!this.running) return;
+        if (shouldTrapScrollKey(e)) e.preventDefault();
+      };
+      window.addEventListener("keydown", this._onWindowKeyScrollTrap, true);
+    }
     el.addEventListener("keydown", this._onKeyDown);
     el.addEventListener("keyup", this._onKeyUp);
   }
 
   removeKeyListeners() {
+    if (this._onWindowKeyScrollTrap) {
+      window.removeEventListener("keydown", this._onWindowKeyScrollTrap, true);
+      this._onWindowKeyScrollTrap = null;
+    }
     const el = this.keyListenerTarget;
     if (el && this._onKeyDown && this._onKeyUp) {
       el.removeEventListener("keydown", this._onKeyDown);
@@ -474,8 +504,10 @@ class PixelRuntime {
   }
 
   setupCanvas() {
-    this.canvas.width = DEFAULT_WIDTH;
-    this.canvas.height = DEFAULT_HEIGHT;
+    const s = this.resolutionScale;
+    this.canvas.width = Math.round(DEFAULT_WIDTH * s);
+    this.canvas.height = Math.round(DEFAULT_HEIGHT * s);
+    this.ctx.setTransform(s, 0, 0, s, 0, 0);
     this.canvas.tabIndex = Math.max(this.canvas.tabIndex ?? 0, 0);
   }
 
@@ -498,6 +530,7 @@ class PixelRuntime {
 
   drawEffectParticles() {
     const ctx = this.ctx;
+    ctx.imageSmoothingEnabled = false;
     for (const em of this.effectEmitters) {
       if (em?.draw) em.draw(ctx);
     }
@@ -505,7 +538,7 @@ class PixelRuntime {
 
   drawTexts() {
     const ctx = this.ctx;
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false;
     for (const entry of this.state.texts.values()) {
       if (!entry || entry.visible === false) continue;
       const alpha = Math.max(0, Math.min(1, Number(entry.opacity ?? 1)));
@@ -513,10 +546,14 @@ class PixelRuntime {
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = entry.colour || "#FFFFFF";
-      const px = Math.max(6, Math.min(72, Number(entry.size) || 14));
+      const px = Math.round(
+        Math.max(6, Math.min(72, Number(entry.size) || 14)),
+      );
       ctx.font = `${px}px "Press Start 2P", monospace`;
       ctx.textBaseline = "top";
-      ctx.fillText(String(entry.text ?? ""), Number(entry.x) || 0, Number(entry.y) || 0);
+      const tx = Math.round(Number(entry.x) || 0);
+      const ty = Math.round(Number(entry.y) || 0);
+      ctx.fillText(String(entry.text ?? ""), tx, ty);
       ctx.restore();
     }
   }
@@ -956,7 +993,11 @@ class PixelRuntime {
       return;
     }
     this.running = true;
-    this.installKeyListeners(this.canvas.parentElement);
+    const keyTarget =
+      this.keyListenerRoot === "canvas"
+        ? this.canvas
+        : this.canvas.parentElement;
+    this.installKeyListeners(keyTarget);
     this.tick();
     try {
       await this.runProgram(program);

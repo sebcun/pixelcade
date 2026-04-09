@@ -167,13 +167,6 @@ def api_public_get_game(game_id: int):
     if game is None or game.status not in ("public", "unlisted"):
         return jsonify({"error": "Game not found"}), 404
 
-    db.session.query(Game).filter(Game.id == game_id).update(
-        {Game.play_count: Game.play_count + 1},
-        synchronize_session=False,
-    )
-    db.session.commit()
-    db.session.refresh(game)
-
     scenes = (
         Scene.query.filter_by(game_id=game.id)
         .order_by(Scene.order_index.asc(), Scene.id.asc())
@@ -217,9 +210,11 @@ def api_public_get_game(game_id: int):
     ]
 
     likes, dislikes = _like_dislike_counts(game.id)
+    owner = db.session.get(User, game.owner_id)
     body = {
         "id": game.id,
         "owner_id": game.owner_id,
+        "owner_username": owner.username if owner else None,
         "title": game.title,
         "description": game.description,
         "status": game.status,
@@ -234,6 +229,22 @@ def api_public_get_game(game_id: int):
         "sprites": sprite_payload,
     }
     return jsonify(body), 200
+
+
+@api_games_bp.route("/<int:game_id>/play", methods=["POST"])
+@limiter.limit("120/minute", key_func=get_remote_address)
+def api_public_record_play(game_id: int):
+    game = db.session.get(Game, game_id)
+    if game is None or game.status not in ("public", "unlisted"):
+        return jsonify({"error": "Game not found"}), 404
+
+    db.session.query(Game).filter(Game.id == game_id).update(
+        {Game.play_count: Game.play_count + 1},
+        synchronize_session=False,
+    )
+    db.session.commit()
+    game = db.session.get(Game, game_id)
+    return jsonify({"play_count": int(game.play_count or 0) if game else 0}), 200
 
 
 @api_games_bp.route("/<int:game_id>/like", methods=["POST"])
