@@ -6,7 +6,7 @@ from flask import Flask
 from flask_migrate import Migrate
 
 from app.blueprints.auth import api_auth_bp, auth_bp
-from app.blueprints.avatar import avatar_bp
+from app.blueprints.avatar import api_avatar_bp, avatar_bp
 from app.blueprints.develop import api_develop_bp, develop_bp
 from app.blueprints.game_api import api_games_bp
 from app.blueprints.game_player import game_player_bp
@@ -48,6 +48,7 @@ def create_app() -> Flask:
     protect_api_blueprint(api_develop_bp)
     protect_api_blueprint(api_games_bp)
     protect_api_blueprint(api_profile_bp)
+    protect_api_blueprint(api_avatar_bp)
 
     from . import models  # noqa: F401
 
@@ -57,6 +58,7 @@ def create_app() -> Flask:
     app.register_blueprint(api_develop_bp, url_prefix="/api/develop")
     app.register_blueprint(api_games_bp, url_prefix="/api/games")
     app.register_blueprint(api_profile_bp, url_prefix="/api/profile")
+    app.register_blueprint(api_avatar_bp, url_prefix="/api/avatar")
     app.register_blueprint(game_player_bp, url_prefix="/game")
     app.register_blueprint(games_bp, url_prefix="/games")
     app.register_blueprint(profile_bp, url_prefix="/profile")
