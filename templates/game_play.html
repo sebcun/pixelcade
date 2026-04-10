@@ -5,6 +5,7 @@
   class="develop-shell game-player-shell"
   id="game-player-root"
   data-game-id="{{ game_id }}"
+  data-login-url="{{ url_for('auth.login') }}"
 >
   <div class="develop-layout game-player">
     <p
@@ -128,6 +129,41 @@
               >
                 Play
               </button>
+            </div>
+          </div>
+          
+          <div
+            id="game-player-level-banner-wrap"
+            class="game-player-level-banner-wrap"
+            aria-hidden="true"
+          >
+            <div
+              id="game-player-level-banner"
+              class="game-player-level-banner"
+              role="status"
+            >
+              <div class="game-player-level-banner__inner">
+                <p
+                  id="game-player-level-banner-title"
+                  class="game-player-level-banner__title font-display"
+                ></p>
+                <p
+                  id="game-player-level-banner-sub"
+                  class="game-player-level-banner__sub"
+                ></p>
+                <div
+                  id="game-player-level-banner-actions"
+                  class="game-player-level-banner__actions"
+                  hidden
+                >
+                  <a
+                    id="game-player-level-banner-login"
+                    class="btn btn--nav-primary game-player-level-banner__btn"
+                    href="{{ url_for('auth.login') }}"
+                    >Log in</a
+                  >
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -74,6 +74,14 @@ function readMetaCsrf() {
   );
 }
 
+const XP_TIER_WINDOWS_MS = { small: 60_000, medium: 300_000, large: 1_800_000 };
+const XP_TIER_AMOUNTS = { small: 10, medium: 25, large: 75 };
+
+function xpToAdvanceFromLevel(level) {
+  const lv = Math.max(1, Math.floor(Number(level) || 1));
+  return Math.floor(100 * lv ** 1.5);
+}
+
 class PixelRuntime {
   constructor(
     canvas,
@@ -85,6 +93,7 @@ class PixelRuntime {
       onRestartScene = null,
       onScriptError = null,
       onToast = null,
+      onLevelUp = null,
       onConsoleLog = null,
       resolutionScale = 1,
       keyListenerRoot = "parent",
@@ -104,7 +113,9 @@ class PixelRuntime {
     this.onRestartScene = typeof onRestartScene === "function" ? onRestartScene : null;
     this.onScriptError = typeof onScriptError === "function" ? onScriptError : null;
     this.onToast = typeof onToast === "function" ? onToast : null;
+    this.onLevelUp = typeof onLevelUp === "function" ? onLevelUp : null;
     this.onConsoleLog = typeof onConsoleLog === "function" ? onConsoleLog : null;
+    this._guestXp = { level: 1, xp: 0, lastMs: Object.create(null) };
     this.spriteLibrary =
       spriteLibrary && typeof spriteLibrary === "object" ? spriteLibrary : {};
     /** @type {Map<string, HTMLImageElement>} */
@@ -409,13 +420,42 @@ class PixelRuntime {
     this._soundSources.delete(key);
   }
 
+  _guestWouldLevelUp(tier) {
+    const t = String(tier || "").toLowerCase();
+    if (t !== "small" && t !== "medium" && t !== "large") return null;
+    const now = Date.now();
+    const windowMs = XP_TIER_WINDOWS_MS[t];
+    const gain = XP_TIER_AMOUNTS[t];
+    const last = this._guestXp.lastMs[t] ?? 0;
+    if (now - last < windowMs) return null;
+    this._guestXp.lastMs[t] = now;
+
+    let level = this._guestXp.level;
+    let xp = this._guestXp.xp + gain;
+    let pixelsGained = 0;
+    let levelledUp = false;
+    while (xp >= xpToAdvanceFromLevel(level)) {
+      const need = xpToAdvanceFromLevel(level);
+      xp -= need;
+      level += 1;
+      pixelsGained += 25 * level;
+      levelledUp = true;
+    }
+    this._guestXp.level = level;
+    this._guestXp.xp = xp;
+    if (!levelledUp) return null;
+    return { newLevel: level, pixelsGained };
+  }
+
   async _postAwardXp(tier) {
     if (this.editorMode || !this.gameId) return;
     const t = String(tier || "").toLowerCase();
     if (t !== "small" && t !== "medium" && t !== "large") return;
     const token = readMetaCsrf();
+    let res;
+    let raw = "";
     try {
-      await fetch(`/api/games/${encodeURIComponent(this.gameId)}/xp`, {
+      res = await fetch(`/api/games/${encodeURIComponent(this.gameId)}/xp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -424,8 +464,46 @@ class PixelRuntime {
         credentials: "same-origin",
         body: JSON.stringify({ amount: t }),
       });
+      raw = await res.text();
     } catch {
-      /* no-op */
+      return;
+    }
+
+    let data = {};
+    if (raw) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = {};
+      }
+    }
+
+    if (res.ok) {
+      if (data.levelled_up === true && this.onLevelUp) {
+        const nl = Number(data.new_level);
+        const pg = Number(data.pixels_gained);
+        this.onLevelUp({
+          saved: true,
+          newLevel: Number.isFinite(nl) ? nl : 1,
+          pixelsGained: Number.isFinite(pg) ? pg : 0,
+        });
+      }
+      return;
+    }
+
+    const authed =
+      typeof window !== "undefined" &&
+      window.currentUser &&
+      window.currentUser.id != null;
+    if (res.status === 401 && !authed && this.onLevelUp) {
+      const guest = this._guestWouldLevelUp(t);
+      if (guest) {
+        this.onLevelUp({
+          saved: false,
+          newLevel: guest.newLevel,
+          pixelsGained: guest.pixelsGained,
+        });
+      }
     }
   }
 

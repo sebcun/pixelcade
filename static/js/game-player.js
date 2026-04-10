@@ -48,6 +48,77 @@ function $(id) {
   return document.getElementById(id);
 }
 
+const LEVEL_BANNER_SLIDE_MS = 350;
+const LEVEL_BANNER_VISIBLE_MS = 5000;
+
+function requestElementFullscreen(el) {
+  if (!el) return;
+  const fn =
+    el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.msRequestFullscreen;
+  if (typeof fn === "function") fn.call(el);
+}
+
+function createGamePlayerLevelUpBanner(root) {
+  const wrap = $("game-player-level-banner-wrap");
+  const titleEl = $("game-player-level-banner-title");
+  const subEl = $("game-player-level-banner-sub");
+  const actions = $("game-player-level-banner-actions");
+  const loginLink = $("game-player-level-banner-login");
+  const banner = $("game-player-level-banner");
+  if (!wrap || !titleEl || !subEl || !actions || !banner) {
+    return { show() {} };
+  }
+
+  const loginUrl =
+    (root && root.getAttribute("data-login-url")) || "/auth/login";
+  if (loginLink) loginLink.setAttribute("href", loginUrl);
+
+  let hideTimer = null;
+
+  function clearTimer() {
+    if (hideTimer) window.clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+
+  function closeBanner() {
+    wrap.classList.remove("game-player-level-banner-wrap--open");
+    window.setTimeout(() => {
+      wrap.setAttribute("aria-hidden", "true");
+      actions.hidden = true;
+      banner.classList.remove("game-player-level-banner--guest");
+    }, LEVEL_BANNER_SLIDE_MS);
+  }
+
+  return {
+    show(payload) {
+      clearTimer();
+      const saved = Boolean(payload?.saved);
+      const newLevel = Number(payload?.newLevel);
+      const lv = Number.isFinite(newLevel) ? newLevel : 1;
+      const pg = Math.max(0, Math.floor(Number(payload?.pixelsGained) || 0));
+      if (saved) {
+        banner.classList.remove("game-player-level-banner--guest");
+        titleEl.textContent = `Level Up! You are now level ${lv}`;
+        subEl.textContent = `+${pg} Pixels`;
+        actions.hidden = true;
+      } else {
+        banner.classList.add("game-player-level-banner--guest");
+        titleEl.textContent = "You would have leveled up";
+        subEl.textContent =
+          "You are not logged in — sign in to save XP, levels, and Pixels.";
+        actions.hidden = false;
+      }
+      wrap.setAttribute("aria-hidden", "false");
+      void wrap.offsetWidth;
+      requestAnimationFrame(() => {
+        wrap.classList.add("game-player-level-banner-wrap--open");
+      });
+      hideTimer = window.setTimeout(closeBanner, LEVEL_BANNER_VISIBLE_MS + LEVEL_BANNER_SLIDE_MS);
+    },
+  };
+}
 
 function playerResolutionScale() {
   if (typeof window === "undefined") return 2;
@@ -71,6 +142,9 @@ export async function initGamePlayerPage() {
   const canvas = $("game-player-canvas");
 
   if (!root || !canvas || !(canvas instanceof HTMLCanvasElement)) return;
+
+  const levelUpBanner = createGamePlayerLevelUpBanner(root);
+  const canvasStack = canvas.closest(".game-player__canvas-stack");
 
   const rawId = root.getAttribute("data-game-id");
   const gameId = Number(rawId);
@@ -132,6 +206,9 @@ export async function initGamePlayerPage() {
             ? type
             : "success";
         showToast(String(msg), t);
+      },
+      onLevelUp: (payload) => {
+        levelUpBanner.show(payload);
       },
       onGoToScene: async (sceneName) => {
         const sid = findSceneIdByName(gamePayload.scenes, sceneName);
@@ -223,7 +300,7 @@ export async function initGamePlayerPage() {
   });
 
   $("game-player-btn-fullscreen")?.addEventListener("click", () => {
-    void canvas.requestFullscreen();
+    requestElementFullscreen(canvasStack ?? canvas);
   });
 
   if (loadingEl) loadingEl.hidden = true;
