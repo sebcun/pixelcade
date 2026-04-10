@@ -12,7 +12,7 @@ from app.blueprints.game_api import api_games_bp
 from app.blueprints.game_player import game_player_bp
 from app.blueprints.games import games_bp
 from app.blueprints.main import main_bp
-from app.blueprints.profile import profile_bp
+from app.blueprints.profile import api_profile_bp, profile_bp
 from app.extensions import bcrypt, csrf, db, limiter, login_manager, protect_api_blueprint
 
 migrate = Migrate()
@@ -47,6 +47,7 @@ def create_app() -> Flask:
     protect_api_blueprint(api_auth_bp)
     protect_api_blueprint(api_develop_bp)
     protect_api_blueprint(api_games_bp)
+    protect_api_blueprint(api_profile_bp)
 
     from . import models  # noqa: F401
 
@@ -55,6 +56,7 @@ def create_app() -> Flask:
     app.register_blueprint(develop_bp, url_prefix="/develop")
     app.register_blueprint(api_develop_bp, url_prefix="/api/develop")
     app.register_blueprint(api_games_bp, url_prefix="/api/games")
+    app.register_blueprint(api_profile_bp, url_prefix="/api/profile")
     app.register_blueprint(game_player_bp, url_prefix="/game")
     app.register_blueprint(games_bp, url_prefix="/games")
     app.register_blueprint(profile_bp, url_prefix="/profile")
