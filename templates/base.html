@@ -62,6 +62,20 @@
           </ul>
         </div>
       </div>
+      <div class="nav-search-wrap" id="nav-game-search-wrap" hidden>
+        <label class="nav-search-label visually-hidden" for="home-game-search"
+          >Search games</label
+        >
+        <input
+          type="search"
+          id="home-game-search"
+          class="nav-search-input"
+          placeholder="Search games…"
+          autocomplete="off"
+          aria-controls="home-search-results home-discovery-rows"
+          aria-expanded="false"
+        />
+      </div>
       <div class="nav-actions">
         <button
           type="button"
@@ -171,8 +185,19 @@
         refreshNavDailyRewardUI,
         setNavPixelsDisplay,
       } from "{{ url_for('static', filename='js/nav-daily-reward.js') }}";
+      import { syncNavSearchVisibility } from "{{ url_for('static', filename='js/home-discovery.js') }}";
 
       window.currentUser = null;
+
+      function syncNavSearchFromShell() {
+        syncNavSearchVisibility();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", syncNavSearchFromShell);
+      } else {
+        syncNavSearchFromShell();
+      }
+      window.addEventListener("popstate", syncNavSearchFromShell);
 
       function renderNavAuthGuest(slot) {
         slot.replaceChildren();

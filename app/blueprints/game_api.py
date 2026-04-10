@@ -87,7 +87,9 @@ def _batch_like_dislike_counts(
 
 
 def _public_list_game_dict(
-    game: Game, counts: Optional[tuple[int, int]] = None
+    game: Game,
+    counts: Optional[tuple[int, int]] = None,
+    owner_username: Optional[str] = None,
 ) -> dict[str, Any]:
     likes, dislikes = counts if counts is not None else _like_dislike_counts(game.id)
     return {
@@ -95,6 +97,7 @@ def _public_list_game_dict(
         "title": game.title,
         "description": game.description,
         "status": game.status,
+        "owner_username": owner_username,
         "play_count": game.play_count,
         "like_count": likes,
         "dislike_count": dislikes,
@@ -150,12 +153,24 @@ def api_public_list_games():
     rows = query.offset((page - 1) * _PER_PAGE).limit(_PER_PAGE).all()
 
     batch = _batch_like_dislike_counts([g.id for g in rows])
+    owner_ids = list({g.owner_id for g in rows})
+    owner_rows = (
+        db.session.query(User.id, User.username).filter(User.id.in_(owner_ids)).all()
+        if owner_ids
+        else []
+    )
+    owner_map = {int(uid): uname for uid, uname in owner_rows}
     pages = (total + _PER_PAGE - 1) // _PER_PAGE if total else 0
     return (
         jsonify(
             {
                 "games": [
-                    _public_list_game_dict(g, counts=batch.get(g.id)) for g in rows
+                    _public_list_game_dict(
+                        g,
+                        counts=batch.get(g.id),
+                        owner_username=owner_map.get(g.owner_id),
+                    )
+                    for g in rows
                 ],
                 "page": page,
                 "per_page": _PER_PAGE,

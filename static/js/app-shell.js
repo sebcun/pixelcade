@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { syncHomeDiscovery, syncNavSearchVisibility } from "./home-discovery.js";
 import {
   refreshGameSettingsView,
   syncGameSettingsGameId,
@@ -241,6 +242,7 @@ function setStubIds(gameId) {
 
 export function applyShellRoute() {
   applyNavMode();
+  syncNavSearchVisibility();
 
   const viewHome = document.getElementById("view-home");
   const viewDevelopHome = document.getElementById("view-develop-home");
@@ -280,6 +282,7 @@ export function applyShellRoute() {
     document.title = "Developer — Pixelcade";
   } else if (!onDev) {
     document.title = "Pixelcade";
+    syncHomeDiscovery();
   }
 }
 

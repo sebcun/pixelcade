@@ -1,18 +1,55 @@
 {% extends "base.html" %} {% block content %}
 <main class="app-shell">
-  <div id="view-home" class="auth-view">
-    <section id="home-showcase" class="showcase" aria-label="Welcome">
-      <h1 class="font-display">Pixelcade</h1>
-      <p class="showcase-lead">Play and build tiny games in your browser.</p>
-      <div class="showcase-actions">
-        <a class="btn btn--nav-primary" href="{{ url_for('auth.signup') }}"
-          >Sign up</a
-        >
-        <a class="btn btn--nav-secondary" href="{{ url_for('auth.login') }}"
-          >Log in</a
-        >
-      </div>
-    </section>
+  <div id="view-home" class="auth-view home-view">
+    <p
+      id="home-discover-error"
+      class="develop-banner develop-banner--error home-discover-error"
+      role="alert"
+      hidden
+    ></p>
+
+    <div id="home-discovery-rows" class="home-discovery-rows">
+      <section class="home-row-section" aria-labelledby="home-trending-heading">
+        <h2 id="home-trending-heading" class="home-row-heading font-display">
+          Trending
+        </h2>
+        <div
+          id="home-row-trending"
+          class="home-row-scroll"
+          role="list"
+          aria-label="Trending games"
+        ></div>
+      </section>
+      <section class="home-row-section" aria-labelledby="home-new-heading">
+        <h2 id="home-new-heading" class="home-row-heading font-display">
+          New &amp; Noteworthy
+        </h2>
+        <div
+          id="home-row-new"
+          class="home-row-scroll"
+          role="list"
+          aria-label="New games"
+        ></div>
+      </section>
+    </div>
+
+    <div id="home-search-results" class="home-search-results" hidden>
+      <h2
+        id="home-search-heading"
+        class="home-search-results__heading font-display"
+      >
+        Search results
+      </h2>
+      <div
+        id="home-search-grid"
+        class="home-games-grid"
+        role="list"
+        aria-labelledby="home-search-heading"
+      ></div>
+      <p id="home-search-empty" class="home-empty" hidden>
+        No games found.
+      </p>
+    </div>
   </div>
 
   <div id="view-develop-home" class="develop-shell" hidden>
