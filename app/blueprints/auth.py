@@ -1,13 +1,15 @@
 import re
+from datetime import datetime
 from typing import Optional
 
 from flask import Blueprint, jsonify, request
+from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import bcrypt, db, limiter
-from app.models import User
+from app.models import DailyCheckin, User
 
 auth_bp = Blueprint("auth", __name__)
 api_auth_bp = Blueprint("api_auth", __name__)
@@ -19,6 +21,12 @@ PASSWORD_MIN_LEN = 8
 
 def _signup_error(message: str, field: str):
     return jsonify({"error": message, "field": field}), 400
+
+
+def _rl_checkin_key() -> str:
+    if current_user.is_authenticated:
+        return f"checkin:user:{current_user.id}"
+    return f"ip:{get_remote_address()}"
 
 
 def _password_error_message(password: str) -> Optional[str]:
@@ -188,6 +196,34 @@ def api_login():
 def api_logout():
     logout_user()
     return jsonify({"message": "Logged out"}), 200
+
+
+@api_auth_bp.route("/checkin", methods=["POST"])
+@login_required
+@limiter.limit("5/hour", key_func=_rl_checkin_key)
+def api_checkin():
+    today = datetime.utcnow().date()
+    existing = DailyCheckin.query.filter_by(
+        user_id=current_user.id,
+        checked_in_date=today,
+    ).first()
+    if existing:
+        return jsonify({"already_checked_in": True}), 200
+
+    user = db.session.get(User, current_user.id)
+    if user is None:
+        return jsonify({"error": "User not found"}), 404
+
+    row = DailyCheckin(user_id=user.id, checked_in_date=today)
+    db.session.add(row)
+    user.pixels = int(user.pixels or 0) + 10
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"already_checked_in": True}), 200
+
+    return jsonify({"pixels_gained": 10, "already_checked_in": False}), 200
 
 
 @api_auth_bp.route("/me", methods=["GET"])

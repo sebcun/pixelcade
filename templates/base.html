@@ -87,9 +87,72 @@
           id="nav-develop-user-slot"
           hidden
         ></div>
+        <button
+          type="button"
+          class="nav-daily-reward-btn"
+          id="nav-daily-reward-btn"
+          hidden
+          aria-label="Daily reward"
+        >
+          <i data-lucide="gift" aria-hidden="true"></i>
+        </button>
       </div>
       {% endblock %}
     </nav>
+    <div
+      id="daily-reward-modal-root"
+      class="system-modal-root"
+      aria-hidden="true"
+    >
+      <div
+        class="system-modal__backdrop"
+        data-daily-reward-dismiss
+        aria-hidden="true"
+      ></div>
+      <div
+        class="system-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="daily-reward-title"
+      >
+        <section class="system-modal__card daily-reward-card">
+          <button
+            type="button"
+            class="system-modal__close"
+            data-daily-reward-dismiss
+            aria-label="Close dialog"
+          >
+            ×
+          </button>
+          <h2 id="daily-reward-title" class="system-modal__title font-display">
+            Daily reward
+          </h2>
+          <div class="daily-reward-body">
+            <div class="daily-reward-gift-wrap" id="daily-reward-gift-wrap">
+              <i
+                data-lucide="gift"
+                class="daily-reward-gift-icon"
+                aria-hidden="true"
+              ></i>
+            </div>
+            <p
+              id="daily-reward-message"
+              class="system-modal__description daily-reward-message"
+            ></p>
+            <div id="daily-reward-claim-wrap" class="daily-reward-claim-wrap">
+              <p class="daily-reward-pixels-label">+10 Pixels</p>
+              <button
+                type="button"
+                id="daily-reward-claim-btn"
+                class="btn btn--nav-primary daily-reward-claim-btn"
+              >
+                Claim Daily Reward
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
     {% block content %}{% endblock %}
     <div id="toast-root" class="toast-root" aria-live="polite"></div>
     {% block scripts %}{% endblock %}
@@ -102,6 +165,12 @@
     </script>
     <script type="module">
       import { api } from "{{ url_for('static', filename='js/api.js') }}";
+      import {
+        applyDailyCheckinFromStorage,
+        initNavDailyReward,
+        refreshNavDailyRewardUI,
+        setNavPixelsDisplay,
+      } from "{{ url_for('static', filename='js/nav-daily-reward.js') }}";
 
       window.currentUser = null;
 
@@ -119,24 +188,39 @@
         slot.appendChild(signup);
       }
 
-      function renderNavAuthUser(slot, username) {
+      function renderNavAuthUser(slot, user) {
         slot.replaceChildren();
+        const wrap = document.createElement("div");
+        wrap.className = "nav-auth-user";
+
+        const pixelsEl = document.createElement("span");
+        pixelsEl.className = "nav-pixels-balance";
+        pixelsEl.id = "nav-pixels-balance";
+        const px = Number(user.pixels);
+        pixelsEl.textContent = `${Number.isFinite(px) ? px.toLocaleString() : "0"} Pixels`;
+
         const profile = document.createElement("a");
         profile.className = "btn btn--nav-secondary";
-        profile.href = "/profile/" + encodeURIComponent(username);
-        profile.textContent = `@${username}`;
-        slot.appendChild(profile);
+        profile.href =
+          "/profile/" + encodeURIComponent(String(user.username || ""));
+        profile.textContent = `@${user.username}`;
+
+        wrap.appendChild(pixelsEl);
+        wrap.appendChild(profile);
+        slot.appendChild(wrap);
       }
 
       function updateNavFromCurrentUser() {
         var slot = document.getElementById("nav-auth-slot");
         if (!slot) return;
         var u = window.currentUser;
+        applyDailyCheckinFromStorage();
         if (u && u.id != null && u.username) {
-          renderNavAuthUser(slot, u.username);
+          renderNavAuthUser(slot, u);
         } else {
           renderNavAuthGuest(slot);
         }
+        refreshNavDailyRewardUI();
         if (typeof lucide !== "undefined") lucide.createIcons();
       }
 
@@ -156,6 +240,9 @@
       }
 
       window.pixelcadeSyncCurrentUser = syncCurrentUser;
+      window.pixelcadeSetNavPixelsDisplay = setNavPixelsDisplay;
+
+      initNavDailyReward();
 
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", syncCurrentUser);

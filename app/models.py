@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from flask_login import UserMixin
+from sqlalchemy import UniqueConstraint
 
 from app.extensions import db
 
@@ -186,6 +187,11 @@ class XPLog(db.Model):
 
 class DailyCheckin(db.Model):
     __tablename__ = "daily_checkins"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "checked_in_date", name="uq_daily_checkins_user_date"
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
