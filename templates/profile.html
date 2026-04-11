@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Profile — Pixelcade{% endblock %}
+{% block content %}
+<main class="profile-page" data-profile-username="{{ profile_username|e }}">
+  <section class="profile-card" aria-live="polite">
+    <p id="profile-loading" class="profile-loading">Loading profile…</p>
+    <p id="profile-error" class="develop-banner develop-banner--error" role="alert" hidden></p>
+
+    <div id="profile-content" hidden>
+      <header class="profile-header">
+        <div class="profile-avatar-wrap" aria-label="User avatar">
+          <div class="profile-avatar-stack profile-avatar-stack--lg" id="profile-avatar-stack"></div>
+        </div>
+        <div class="profile-header-meta">
+          <h1 id="profile-username" class="profile-username font-display">—</h1>
+          <p id="profile-joined" class="profile-joined"></p>
+          <p id="profile-level" class="profile-level"></p>
+          <div class="profile-xp">
+            <div class="profile-xp__labels">
+              <span>XP Progress</span>
+              <span id="profile-xp-text">0%</span>
+            </div>
+            <div class="profile-xp__track" aria-hidden="true">
+              <div id="profile-xp-fill" class="profile-xp__fill"></div>
+            </div>
+          </div>
+        </div>
+        <div class="profile-balance-wrap">
+          <p class="profile-balance-label">Pixel Balance</p>
+          <p id="profile-balance" class="profile-balance">0</p>
+          <button type="button" id="profile-edit-avatar-btn" class="btn btn--nav-primary" hidden>
+            Edit Avatar
+          </button>
+        </div>
+      </header>
+
+      <section class="profile-games" aria-labelledby="profile-games-title">
+        <h2 id="profile-games-title" class="profile-games__title">Published Games</h2>
+        <div id="profile-games-grid" class="home-games-grid" role="list"></div>
+        <p id="profile-games-empty" class="profile-games-empty" hidden>No published games yet.</p>
+      </section>
+    </div>
+  </section>
+
+  <div id="avatar-editor-root" class="avatar-editor-root" aria-hidden="true">
+    <div class="avatar-editor-backdrop" data-avatar-editor-close aria-hidden="true"></div>
+    <div class="avatar-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-editor-title">
+      <section class="avatar-editor-card">
+        <button type="button" class="avatar-editor-close" data-avatar-editor-close aria-label="Close dialog">×</button>
+        <h2 id="avatar-editor-title" class="avatar-editor-title font-display">Edit Avatar</h2>
+        <div class="avatar-editor-layout">
+          <section class="avatar-editor-preview-panel">
+            <h3 class="avatar-editor-panel-title">Live Preview</h3>
+            <div class="profile-avatar-stack profile-avatar-stack--xl" id="avatar-editor-preview"></div>
+          </section>
+          <section class="avatar-editor-picker-panel">
+            <h3 class="avatar-editor-panel-title">Pick Items</h3>
+            <div class="avatar-tabs" id="avatar-tabs" role="tablist" aria-label="Avatar categories"></div>
+            <div id="avatar-items-grid" class="avatar-items-grid" role="tabpanel"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/profile-page.js') }}"></script>
+{% endblock %}

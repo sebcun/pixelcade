@@ -1,6 +1,6 @@
 from typing import Optional
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required
 from sqlalchemy import func
@@ -44,6 +44,22 @@ def _serialize_user(user: User) -> dict:
     }
 
 
+def _avatar_layers_from_names(avatar_names: dict) -> dict:
+    names = {
+        "base": avatar_names.get("base"),
+        "eyes": avatar_names.get("eyes"),
+        "hair": avatar_names.get("hair"),
+        "accessory": avatar_names.get("accessory"),
+    }
+    wanted = [name for name in names.values() if isinstance(name, str) and name.strip()]
+    if not wanted:
+        return {k: None for k in names}
+
+    items = AvatarItem.query.filter(AvatarItem.name.in_(wanted)).all()
+    image_by_name = {str(item.name): item.image_path for item in items if item.image_path}
+    return {k: image_by_name.get(v) if isinstance(v, str) else None for k, v in names.items()}
+
+
 def _public_game_like_counts(game_ids: list[int]) -> dict[int, int]:
     if not game_ids:
         return {}
@@ -61,6 +77,7 @@ def _serialize_public_game(game: Game, like_count: int) -> dict:
         "id": game.id,
         "title": game.title,
         "description": game.description,
+        "thumbnail_path": game.thumbnail_path,
         "play_count": int(game.play_count or 0),
         "like_count": int(like_count or 0),
     }
@@ -74,6 +91,7 @@ def _serialize_public_profile(user: User) -> dict:
     )
     like_counts = _public_game_like_counts([game.id for game in games])
     payload = _serialize_user(user)
+    payload["avatar_layers"] = _avatar_layers_from_names(payload.get("avatar", {}))
     payload["games"] = [
         _serialize_public_game(game, like_counts.get(game.id, 0)) for game in games
     ]
@@ -98,12 +116,14 @@ def _validate_avatar_item(
 
 @profile_bp.route("/")
 def me():
-    return "profile self placeholder"
+    if not current_user.is_authenticated:
+        return redirect(url_for("main.shell"))
+    return redirect(url_for("profile.user", user_id=current_user.username))
 
 
 @profile_bp.route("/<user_id>")
 def user(user_id: str):
-    return "profile user placeholder"
+    return render_template("profile.html", profile_username=user_id)
 
 
 @api_profile_bp.route("/<string:username>", methods=["GET"])

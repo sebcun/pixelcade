@@ -13,7 +13,7 @@ function gameTitle(g) {
   return "Untitled";
 }
 
-function createGameCardEl(g, variant) {
+export function createGameCardEl(g, variant) {
   const id = g.id;
   const title = gameTitle(g);
   const thumbUrl =
